@@ -1,0 +1,27 @@
+{
+	"name": "@aethernet/snowflake",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/Snowflake.ts",
+		"./src/*": "./src/*",
+		"./*": "./*"
+	},
+	"main": "./src/Snowflake.ts",
+	"types": "./src/Snowflake.ts",
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"typecheck": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@aethernet/constants": "workspace:*",
+		"itty-time": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@typescript/native-preview": "catalog:",
+		"vitest": "catalog:"
+	}
+}

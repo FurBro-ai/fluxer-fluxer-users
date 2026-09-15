@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-labelledby="title">
+  <title id="title">AETHERNET Network Ally</title>
+  <defs><linearGradient id="g" x1="4" y1="36" x2="36" y2="4"><stop stop-color="#087f9c"/><stop offset="1" stop-color="#78f1ff"/></linearGradient></defs>
+  <circle cx="20" cy="20" r="18" fill="url(#g)"/>
+  <path d="M12 14h7l4 6-4 6h-7l4-6-4-6Zm16 0-4 6 4 6" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,11 @@
+/.velopack/
+/dist-electron/
+
+/native/**/*.node
+/native/webauthn/*.so*
+/native/win-game-capture/aethernet-game-hook.*.dll
+/native/win-game-capture/aethernet-inject-helper.*.exe
+/native/win-game-capture/aethernet-vulkan-layer.*.dll
+/native/win-game-capture/aethernet-vulkan-layer.*.json
+
+/src/common/BuildChannel.ts

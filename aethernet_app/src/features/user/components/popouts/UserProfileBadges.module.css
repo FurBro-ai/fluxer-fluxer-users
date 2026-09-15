@@ -1,0 +1,128 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.containerModal {
+	display: flex;
+	align-items: center;
+}
+
+.containerModalMobile {
+	gap: 0.5rem;
+}
+
+.containerModalDesktop {
+	gap: 0.25rem;
+}
+
+.containerPopout {
+	position: absolute;
+	top: 7.1875rem;
+	right: 0.625rem;
+	z-index: 10;
+	display: flex;
+	gap: 0.3125rem;
+	border: 1px solid color-mix(in srgb, var(--brand-primary) 26%, transparent);
+	border-radius: 0.625rem;
+	padding: 0.3125rem;
+	background: color-mix(in srgb, var(--background-secondary) 86%, transparent);
+	box-shadow:
+		0 0.375rem 1.25rem rgb(0 0 0 / 24%),
+		inset 0 1px 0 rgb(255 255 255 / 8%);
+	backdrop-filter: blur(0.75rem) saturate(135%);
+}
+
+.badgeMobile {
+	height: 1.75rem;
+	width: 1.75rem;
+}
+
+.badgeDesktop {
+	height: 1.25rem;
+	width: 1.25rem;
+}
+
+.badgeMobile,
+.badgeDesktop {
+	display: block;
+	filter: drop-shadow(0 0.125rem 0.1875rem rgb(0 0 0 / 24%));
+	transition:
+		transform 160ms ease,
+		filter 160ms ease;
+}
+
+.sequenceBadge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--brand-primary-light);
+	font-weight: 700;
+	font-family: var(--font-sans);
+	line-height: 1;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+:global(.theme-light) .sequenceBadge {
+	color: var(--brand-primary);
+}
+
+.sequenceBadgeMobile {
+	height: 1.75rem;
+	font-size: 1.5rem;
+}
+
+.sequenceBadgeDesktop {
+	height: 1.25rem;
+	font-size: 1.0625rem;
+}
+
+.link {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	place-self: anchor-center;
+	cursor: pointer;
+	touch-action: manipulation;
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-tap-highlight-color: transparent;
+	text-decoration: none;
+	border-radius: 0.375rem;
+	padding: 0.0625rem;
+}
+
+.toneMember {
+	--badge-glow: #24d1c4;
+}
+.toneStaff {
+	--badge-glow: #b784ff;
+}
+.tonePartner {
+	--badge-glow: #5ee7ff;
+}
+.toneHunter {
+	--badge-glow: #ff6e91;
+}
+.tonePremium {
+	--badge-glow: #ffd166;
+}
+
+.link:hover .badgeMobile,
+.link:hover .badgeDesktop,
+.link:focus-visible .badgeMobile,
+.link:focus-visible .badgeDesktop {
+	transform: translateY(-1px) scale(1.08);
+	filter: drop-shadow(0 0.1875rem 0.3125rem color-mix(in srgb, var(--badge-glow) 60%, transparent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.badgeMobile,
+	.badgeDesktop {
+		transition: none;
+	}
+}
+
+.link:active,
+:global(:where(html.window-focused, html.unfocused-fully-interactive):not(.window-focus-activation-guard)) .link:hover {
+	text-decoration: none;
+}

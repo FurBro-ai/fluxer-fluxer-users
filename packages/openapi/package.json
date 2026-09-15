@@ -1,0 +1,29 @@
+{
+	"name": "@aethernet/openapi",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./*"
+	},
+	"scripts": {
+		"generate": "tsx src/scripts/GenerateSpec.ts",
+		"test": "vitest run",
+		"typecheck": "tsgo --noEmit",
+		"validate": "tsx src/scripts/GenerateSpec.ts --validate-only"
+	},
+	"dependencies": {
+		"@aethernet/errors": "workspace:*",
+		"@aethernet/schema": "workspace:*",
+		"@redocly/openapi-core": "catalog:",
+		"ts-morph": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "catalog:",
+		"@types/node": "catalog:",
+		"@typescript/native-preview": "catalog:",
+		"tsx": "catalog:",
+		"vitest": "catalog:"
+	}
+}

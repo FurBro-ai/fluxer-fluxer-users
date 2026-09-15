@@ -1,0 +1,2078 @@
+---
+# SPDX-License-Identifier: AGPL-3.0-or-later
+title: Configuration
+description: Every variable a self-hosted instance reads, grouped by concern.
+---
+
+:::tip[Plutonium and donations fund Aethernet]
+We are grateful to everyone supporting the project through [Aethernet Plutonium](https://aethernet.app/plutonium) or [donations](https://aethernet.app/donate). All of our code is free and open source on [GitHub](https://github.com/aethernetapp/aethernet). The Operator Pass is coming, and adds a direct line to the team for help and feedback.
+:::
+
+Aethernet reads its settings from environment variables. They live in a file named `.env`, in the same directory as `docker-compose.yml`.
+
+For the bundled Compose stack, start with [Core identity and public address](#core-identity-and-public-address) and [Secrets you must generate](#secrets-you-must-generate). The remaining sections cover custom settings and external services.
+
+The installer in [Get started](/operator/get-started/) writes `.env` for you and fills in every secret. [Upgrading](/operator/upgrading/) covers moving between releases.
+
+## How configuration is loaded
+
+Compose passes only variables listed in `docker-compose.yml`. For an unlisted setting, add it to the service's environment through a local Compose override. Adding it to `.env` alone has no effect.
+
+Single-quote values containing a literal `$` so Compose does not expand them as variable references:
+
+```ini
+POSTGRES_PASSWORD='ab$cd'
+```
+
+A container's environment is fixed when it is created. Apply changes with `docker compose up -d`, which recreates affected services. `docker compose restart` keeps the old environment.
+
+Precedence, highest first:
+
+1. A value stored by the admin dashboard, for the settings listed under [Runtime settings](#runtime-settings-in-the-admin-dashboard).
+2. The environment variable.
+3. The built-in default.
+
+Use `true` or `false` for booleans, decimal integers for integer settings, and the specified object or array for JSON settings. Defaults and accepted values are listed below. Leave an unwanted override unset, since an empty value does not always restore the default.
+
+## Core identity and public address
+
+`AETHERNET_DOMAIN` is required. Everything else here is optional.
+
+| Variable | Value in `.env.example` | Controls |
+| --- | --- | --- |
+| AETHERNET_DOMAIN | `chat.example.com` | The hostname users type. Reaches services as `AETHERNET_BASE_DOMAIN`. Compose refuses to start when it is unset or empty |
+| AETHERNET_PUBLIC_SCHEME | `https` | The scheme users see. Must be `http` or `https`. Anything else fails startup |
+| AETHERNET_PUBLIC_PORT | `443` | The port users see. Integer. Omitted from derived URLs when it is the default for the scheme |
+
+Outside Compose these fall back to an empty base domain, `http`, and port `8088`. Compose supplies `https` and `443`.
+
+The API and worker require hostname-only domain settings: no scheme, port, credentials, path, query, fragment, or whitespace. Bracket IPv6 addresses. Valid hostname spelling is preserved, including case and a terminal root dot.
+
+`AETHERNET_DOMAIN` also feeds the default passkey relying party identifier, the default VAPID contact address, and the edge listener address.
+
+`AETHERNET_PUBLIC_ORIGIN` states the same public address as one string, and [The public origin](#the-public-origin) has it.
+
+#### `AETHERNET_INTERNAL_SCHEME`
+
+Default `http`. The scheme for internal service URLs. Must be `http` or `https`, and anything else fails startup.
+
+## Small hosts (1–2 GB idle, 30+ users)
+
+The defaults fit an 8 GB host (sized for 16 GB). Two checked-in presets cover
+smaller boxes; ceilings are sums of per-service limits, not allocations:
+
+- `.env.low-memory.example` (~6.2 GB ceilings, ~1.6 GB measured idle): 4 GB servers.
+  Append with `cat .env.low-memory.example >> .env`.
+- `.env.micro.example` (~3.9 GB ceilings, 1–2 GB idle, max ~6 GB / 3 CPU under
+  load): 2 vCPU boxes with 30+ mostly-text users and a few concurrent voice
+  slots. Append with `cat .env.micro.example >> .env`.
+
+Micro tuning notes: Postgres is capped at 30 server connections with 5-connection
+app pools, Node heaps at 320 MB (well below the 512 MB container limits), worker
+lanes serialized to `{"realtime":1,"unfurl":1,"lifecycle":1,"batch":1}`, Erlang
+schedulers clamped to 1–4, Meilisearch indexing to 96 MB, and
+`AETHERNET_SVC_MAX_CONCURRENT_REQUESTS=64` sheds excess load with 503 instead of
+OOMing. Every service also carries a `*_CPUS_LIMIT` ceiling (steady use 1–2 CPU,
+burst ~3 CPU). LiveKit at 192 MB / 0.5 CPU holds one room with 4–6 concurrent
+speakers; set `AETHERNET_LIVEKIT_ENABLED=false` for text-only headroom. Do not use
+micro for parallel large uploads, >10 concurrent voice publishers, or full
+reindexing — use low-memory or the defaults instead.
+
+## Secrets you must generate
+
+Every value below ships as `CHANGE_ME`. Replace them all before the first start. Compose refuses to start when one is unset or empty, and names the variable. Generate each with `openssl rand -hex 32`, except the relay secret and the VAPID pair, whose own entries name the command. The installer in [Get started](/operator/get-started/) generates them all, so come here to rotate one value later or to set them up by hand.
+
+For production, keep `.env` out of git and shell history: store these names in a
+managed secret store (AWS Secrets Manager, GCP Secret Manager, Azure Key Vault,
+HashiCorp Vault, 1Password Connect, or sops/age-encrypted files) and render
+`.env` at deploy time. Rotate on a schedule — 90 days for session/CSRF/OAuth
+secrets (`AETHERNET_ADMIN_SECRET_KEY_BASE`, `AETHERNET_ADMIN_OAUTH_CLIENT_SECRET`,
+`AETHERNET_SUDO_MODE_SECRET`), 180 days for service-to-service tokens
+(`AETHERNET_GATEWAY_RPC_AUTH_TOKEN`, `AETHERNET_MEDIA_PROXY_SECRET_KEY`,
+`AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64`, `LIVEKIT_API_SECRET`), and
+immediately on staff departure or suspected leak. Postgres/Meilisearch/S3 rotation
+also requires updating the stored role/identity (see each entry below); the rest
+take effect on the next `docker compose up -d` of the affected services.
+
+#### `POSTGRES_PASSWORD`
+
+The database login, reused as `AETHERNET_POSTGRES_PASSWORD`. Requires changing the stored role password too.
+
+#### `MEILI_MASTER_KEY`
+
+The Meilisearch master key, reused as `AETHERNET_SEARCH_API_KEY`. Recreate `meilisearch` and every service that searches.
+
+#### `AETHERNET_S3_SECRET_KEY`
+
+The object-storage secret, reused as `AETHERNET_S3_SECRET_ACCESS_KEY`. `seaweedfs-init` installs it as the object store's only S3 identity on every `compose up`, so a changed value takes effect on the next start.
+
+#### `AETHERNET_SUDO_MODE_SECRET`
+
+Sudo mode JWTs, as a raw HS256 key. Invalidates every elevated session.
+
+#### `AETHERNET_CONNECTION_INITIATION_SECRET`
+
+Connection initiation tokens and harvest download links. Invalidates in-flight authorisations and issued download links.
+
+#### `AETHERNET_GATEWAY_RPC_AUTH_TOKEN`
+
+Internal RPC between the API and the Gateway. Must be byte-identical on `api`, `worker`, and `gateway`.
+
+#### `AETHERNET_MEDIA_PROXY_SECRET_KEY`
+
+Media Proxy URLs. Must match across `api`, `worker`, `media-proxy`, `gifs`, and `unfurl`.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64`
+
+Generate with `openssl rand -base64 32`. [Upload relay](/media-proxy/upload-relay/) capability tokens. Must be standard base64 decoding to at least 32 bytes. Hex fails. Must match on `api`, `worker`, and `media-proxy`. The API and the Media Proxy both check it at boot and refuse to start without it in `upload` mode.
+
+#### `AETHERNET_ADMIN_SECRET_KEY_BASE`
+
+Admin sessions, CSRF tokens, and OAuth state. Signs every admin out. The admin service refuses to start when it is empty.
+
+#### `AETHERNET_ADMIN_OAUTH_CLIENT_SECRET`
+
+The admin OAuth2 client secret. The API requires a non-empty value to serve the admin application.
+
+#### `AETHERNET_ERLANG_COOKIE`
+
+The BEAM distribution secret. Only the Gateway reads it. Rotate it on every Gateway node at once when clustering.
+
+#### `LIVEKIT_API_SECRET`
+
+LiveKit access tokens. Must be at least 32 characters.
+
+#### `AETHERNET_VAPID_PUBLIC_KEY`
+
+Base64url of the 65-byte uncompressed P-256 point, unpadded, which is 87 characters. Config validation rejects any other shape at boot. `install.sh` derives it with `openssl ecparam` and `openssl ec`, and `npx web-push generate-vapid-keys` produces the same pair.
+
+#### `AETHERNET_VAPID_PRIVATE_KEY`
+
+The matching half of the pair. Base64url of the 32-byte P-256 scalar, unpadded, which is 43 characters. The API refuses to start when the scalar does not derive the public point. Both values are required even when nobody uses browser notifications.
+
+The values below ship with a usable value. Both are required.
+
+#### `AETHERNET_S3_ACCESS_KEY`
+
+`.env.example` `aethernet`. The object-storage access key. Reaches services as `AETHERNET_S3_ACCESS_KEY_ID`, which config validation requires to be non-empty.
+
+#### `LIVEKIT_API_KEY`
+
+`.env.example` `aethernet`. The LiveKit API key. Compose passes it to LiveKit as `LIVEKIT_KEYS` and as the webhook signing key, and to the API as `AETHERNET_LIVEKIT_API_KEY`, so one change in `.env` moves them all.
+
+## Endpoint derivation from AETHERNET_BASE_DOMAIN
+
+Aethernet builds its public endpoints from the scheme, the base domain, and the port. The docs endpoint is a fixed value. A port of `443` under `https` or `wss`, or `80` under `http` or `ws`, is omitted.
+
+| Endpoint | Derived value |
+| --- | --- |
+| api, api_client | scheme, base domain, optional port, `/api` |
+| app | scheme, base domain, optional port |
+| gateway | `ws` or `wss`, base domain, optional port, `/gateway` |
+| media | scheme, base domain, optional port, `/media` |
+| static_cdn | scheme, base domain, optional port. With `AETHERNET_STATIC_CDN_DOMAIN` set it becomes `https://` and that domain, with no port |
+| admin | scheme, base domain, optional port, `/admin` |
+| docs | Always `https://aethernet.dev`. Not built from the domain settings |
+| marketing | scheme, base domain, optional port, `/marketing` |
+| invite | scheme, `AETHERNET_INVITE_DOMAIN` or the base domain, optional port, `/invite` |
+| gift | scheme, `AETHERNET_GIFT_DOMAIN` or the base domain, optional port, `/gift` |
+
+Nothing in the stack reads `X-Forwarded-Proto` or `X-Forwarded-Host`. Every absolute URL comes from configuration, so set the scheme, the host, and the port by hand and keep them in sync with whatever terminates TLS.
+
+## The public origin
+
+`AETHERNET_PUBLIC_ORIGIN` states the public address as one string, with no trailing slash: the scheme, the host, and the port when that port is not the default for the scheme. `AETHERNET_PUBLIC_SCHEME`, `AETHERNET_DOMAIN` and `AETHERNET_PUBLIC_PORT` state the same address between them, so the spellings have to agree.
+
+Use an explicit `http://` or `https://` origin. Surrounding spaces and a single trailing slash are accepted. Credentials, paths, query strings, fragments, control characters, and empty or zero ports are rejected.
+
+Leave it unset unless you need to state the full address explicitly. Compose otherwise derives the public URLs from the scheme, domain and port, including non-default ports.
+
+If you set it, keep these settings consistent with it. A mismatch can break sign-in, setup, passkeys and media access.
+
+## Endpoint overrides
+
+Each of these replaces its derived endpoint wholesale. Set one only when part of the instance answers at an address the derivation does not produce. All are optional.
+
+The API and worker validate endpoint URLs at startup. The Gateway endpoint requires `ws://` or `wss://`. The others require `http://` or `https://`. Path prefixes and explicit ports are allowed. Credentials, fragments, whitespace, and backslashes are rejected. HTTP endpoint bases cannot contain a query. The Gateway URL may retain query parameters.
+
+#### `AETHERNET_STATIC_CDN_DOMAIN`
+
+Default empty. A separate host for static assets. When set, the static endpoint is forced to `https` with no port.
+
+#### `AETHERNET_INVITE_DOMAIN`
+
+Default empty. The host used in invite links. A hostname with no scheme and no path.
+
+#### `AETHERNET_GIFT_DOMAIN`
+
+Default empty. The host used in gift links. A hostname with no scheme and no path.
+
+#### `AETHERNET_API_ENDPOINT`
+
+Defaults to the derived endpoint. The public API base. The `admin` service reads the same name as its internal API target, which is why Compose sets it to `http://api:8080` for that container only.
+
+#### `AETHERNET_API_CLIENT_ENDPOINT`
+
+Defaults to the derived endpoint. The API base handed to clients. Setting only one of the API endpoints splits what clients see from what the instance advertises.
+
+#### `AETHERNET_APP_ENDPOINT`
+
+Defaults to the derived endpoint. The web app origin. Also one of the allowed CORS origins. Serving the client from another hostname requires setting this.
+
+#### `AETHERNET_GATEWAY_ENDPOINT`
+
+Defaults to the derived endpoint. The public Gateway WebSocket URL. Also the source of the internal Gateway URL when `AETHERNET_INTERNAL_GATEWAY_ENDPOINT` is unset, with `ws` rewritten to `http`.
+
+#### `AETHERNET_MEDIA_ENDPOINT`
+
+Defaults to the derived endpoint. The public Media Proxy URL. The `gifs` service accepts it as a fallback for `AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT`.
+
+#### `AETHERNET_STATIC_CDN_ENDPOINT`
+
+Defaults to the derived endpoint. The static asset origin. Read by `api`, `worker`, `admin`, `app-proxy`, and `unfurl`.
+
+#### `AETHERNET_ADMIN_ENDPOINT`
+
+Defaults to the derived endpoint. The admin origin. The API accepts exactly this value plus `/oauth2_callback` as the admin OAuth redirect URI.
+
+The admin dashboard sets its cookie flags from the scheme of this value, which Compose builds from `AETHERNET_PUBLIC_SCHEME`. Over HTTPS its CSRF cookie is named `__Host-csrf_token` and has `Secure`. Over HTTP it is named `csrf_token` without `Secure`.
+
+#### `AETHERNET_DOCS_ENDPOINT`
+
+Defaults to `https://aethernet.dev`. The docs origin. Never handed to a client.
+
+#### `AETHERNET_MARKETING_ENDPOINT`
+
+Defaults to the derived endpoint. The marketing origin. The second allowed CORS origin. Its hostname is extracted and matched.
+
+#### `AETHERNET_INVITE_ENDPOINT`
+
+Defaults to the derived endpoint. The invite base. Hostname is extracted and matched.
+
+#### `AETHERNET_GIFT_ENDPOINT`
+
+Defaults to the derived endpoint. The gift base. Hostname is extracted and matched.
+
+Internal endpoints address one container from another and never appear in a browser. `AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT` is required by `gifs`. The rest are optional.
+
+#### `AETHERNET_INTERNAL_API_ENDPOINT`
+
+Default `http://127.0.0.1:8080`. The API address used by `worker` and `gateway`. Compose sets `http://api:8080`.
+
+#### `AETHERNET_INTERNAL_GATEWAY_ENDPOINT`
+
+No default. The Gateway address the API calls. Falls back to the public Gateway URL with the scheme rewritten. Compose sets `http://gateway:8080`.
+
+#### `AETHERNET_INTERNAL_MEDIA_PROXY_ENDPOINT`
+
+Default `http://127.0.0.1:8082`. The internal Media Proxy address for `api` and `worker`. `AETHERNET_MEDIA_PROXY_ENDPOINT` is read as an alias when this name is unset.
+
+#### `AETHERNET_MEDIA_PROXY_ENDPOINT`
+
+No default. The internal Media Proxy address. `unfurl-shard` reads this name alone and exits without it. On `api` and `worker` it is an alias of `AETHERNET_INTERNAL_MEDIA_PROXY_ENDPOINT`, read only when that name is unset.
+
+#### `AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT`
+
+No default. The public Media Proxy URL used by `gifs`, `unfurl`, and `media-proxy`. `gifs` requires this or `AETHERNET_MEDIA_ENDPOINT` to start. Set it on `media-proxy` so requests for its own assets use local storage instead of an HTTP round trip. For `api` and `worker`, use `AETHERNET_MEDIA_ENDPOINT` instead.
+
+#### `AETHERNET_UNFURL_STATIC_CDN_ENDPOINT`
+
+Falls back to `AETHERNET_STATIC_CDN_ENDPOINT`. The static origin used by `unfurl`. Read only by `unfurl`.
+
+## The edge
+
+The `edge` container is the only HTTP entry point. Both layouts below work with the edge left alone.
+
+Bundled TLS is the default. `docker compose up -d` binds `80/tcp`, `443/tcp`, and `443/udp` and obtains its own certificate for `AETHERNET_DOMAIN`. Point DNS at the host and set nothing else. The `443` publishes follow `AETHERNET_PUBLIC_PORT`, so a non-default public port moves them with it.
+
+Put your own reverse proxy in front by adding `docker-compose.proxy.yml`, a second Compose file that overrides parts of the first. Load it with `-f` twice, or set `COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml` in `.env` once. The edge then serves plain HTTP on one port, and the proxy in front terminates TLS. [Behind your own reverse proxy](/operator/reverse-proxy/) owns the switch, the requirements, and the per-proxy configuration.
+
+All are optional.
+
+#### `AETHERNET_EDGE_SITE_ADDRESS`
+
+Defaults to the address Compose builds from `AETHERNET_PUBLIC_SCHEME`, `AETHERNET_DOMAIN` and `AETHERNET_PUBLIC_PORT`. What the edge listens on, and the default keeps the listener on the address the instance advertises. Honoured in the bundled layout only, because `docker-compose.proxy.yml` sets the literal `:8080` and `tunnel.compose.yml` the literal `:80`, and either discards any `.env` value. Several hostnames therefore need the bundled layout. Write the scheme into any value you set here, because a bare hostname means automatic HTTPS on `443` whatever `AETHERNET_PUBLIC_SCHEME` says.
+
+#### `AETHERNET_EDGE_TRUSTED_PROXIES`
+
+Default `private_ranges`. Which upstream hops the edge believes about `X-Forwarded-For`. The default is `192.168.0.0/16`, `172.16.0.0/12`, `10.0.0.0/8`, `127.0.0.1/8`, `fd00::/8` and `::1`, which covers every same-host proxy. Narrow it to the proxy's own address when the proxy reaches the instance from a public address, or when clients reach the proxy from a range the default already covers.
+
+#### `AETHERNET_EDGE_BIND`
+
+Default `127.0.0.1:8080`. Where the plain-HTTP port binds. Read only under the overlay. `0.0.0.0:8080` must be firewalled to the proxy host, because a trusted peer's `X-Forwarded-For` is honoured.
+
+#### `AETHERNET_HTTP_PORT`
+
+Default `80`. The host side of the edge's HTTP publish, which serves the redirect to HTTPS and the ACME HTTP challenge under an `https` scheme and nothing at all under an `http` one. The container still listens on `80` inside. It takes an optional bind address in front of the port, so `127.0.0.1:80` keeps the publish off every public interface. Do not set it to the port `AETHERNET_PUBLIC_PORT` already names, because that publishes one host port twice and the edge refuses to start. Not read under the overlay, which publishes `AETHERNET_EDGE_BIND` instead.
+
+#### `AETHERNET_HTTPS_PORT`
+
+Defaults to `AETHERNET_PUBLIC_PORT`. The host side of the edge's HTTPS publish, and the only thing it moves is that host side. Set it when the host already has something on the port the instance advertises. It moves the TCP and the UDP publish together, because HTTP/3 needs both on the same port. Same optional bind address, and it is not read under the overlay either.
+
+#### `COMPOSE_FILE`
+
+No default. Which Compose files are loaded. Read by Docker Compose itself. Set it to select the overlay for every command.
+
+`AETHERNET_CADDY_SITE_ADDRESS` is the old name for `AETHERNET_EDGE_SITE_ADDRESS`. Compose reads it only when `AETHERNET_EDGE_SITE_ADDRESS` is unset, so an older `.env` keeps the listener it already had and can be renamed at any time.
+
+## Client IP
+
+The edge resolves one client address per request and rewrites `X-Forwarded-For` to it on every upstream hop, so no service reads what a visitor sent. When the peer is outside `AETHERNET_EDGE_TRUSTED_PROXIES`, the edge uses the peer address and discards the header. When the peer is inside the list, the edge takes the rightmost header entry that is not itself trusted, so a proxy that appends still delivers the real caller. A client whose own address is inside the list resolves to the proxy, which is why [Trusted proxies](/operator/reverse-proxy/#trusted-proxies) tells a LAN or VPN deployment to narrow it.
+
+All are optional.
+
+#### `AETHERNET_TRUST_CLIENT_IP_HEADER`
+
+Default `false`. Whether the client-IP header is trusted. Compose sets `true` for every service that merges the shared environment block, which `app-proxy` does not. The API has no peer-address fallback, so `false` on `api` makes every non-exempt request a 403.
+
+#### `AETHERNET_CLIENT_IP_HEADER_NAME`
+
+Default `x-forwarded-for`. Which header has the client IP. Read by `api`, `worker`, `admin`, `app-proxy`, and `gateway`. It must match what the edge sets.
+
+#### `AETHERNET_CLIENT_IP_HEADER`
+
+No default. Alias for `AETHERNET_CLIENT_IP_HEADER_NAME`. Accepted only by `admin` and `app-proxy`.
+
+#### `CLIENT_IP_HEADER_NAME` and `CLIENT_IP_HEADER`
+
+No default. Legacy unprefixed aliases. Accepted only by `admin` and `app-proxy`, last in the preference chain.
+
+#### `AETHERNET_API_IP_BAN_EXEMPT_IPS`
+
+Default empty. Addresses exempt from IP bans. Comma separated. Every entry must parse as an IP or the API fails at boot.
+
+The API rejects any request whose client-IP header is missing, empty, not a parsable address, or not trusted under `AETHERNET_TRUST_CLIENT_IP_HEADER` with 403, except on `/_health`, `/webhooks/livekit`, `/test`, and the Bluesky client metadata and JWKS routes. The edge sets the header on every upstream hop, so this applies only to a layout that puts something directly in front of `api`. A proxy in front of the edge that never sets the header passes the check, and every request then looks as though it came from the proxy.
+
+## Images
+
+These pick which container images Compose pulls. All are optional.
+
+| Variable | Value in `.env.example` |
+| --- | --- |
+| AETHERNET_REGISTRY_OWNER | `aethernetapp` |
+| AETHERNET_REGISTRY | `ghcr.io/${AETHERNET_REGISTRY_OWNER}` |
+| AETHERNET_IMAGE_TAG | `v1` |
+
+`AETHERNET_REGISTRY_OWNER` is the owner segment of the image names and falls back to `aethernetapp`. `AETHERNET_REGISTRY` is the registry images are pulled from and falls back to `ghcr.io/` followed by the owner. `AETHERNET_IMAGE_TAG` is the tag on every Aethernet image and falls back to `v1`.
+
+These affect only the Aethernet images. `docker-compose.yml` pins the `caddy`, `postgres`, `valkey`, `nats`, `meilisearch`, `seaweedfs`, and `livekit` images, and `.env` cannot change them.
+
+## Database
+
+`AETHERNET_POSTGRES_HOST`, `AETHERNET_POSTGRES_DATABASE`, `AETHERNET_POSTGRES_USERNAME`, and `AETHERNET_POSTGRES_PASSWORD` are required in production. The rest are optional.
+
+#### `AETHERNET_DATABASE_BACKEND`
+
+Default `postgres`. Which backend is used. Node accepts only `postgres` or `cassandra`. The internal services also accept `postgresql`, `pg`, `scylla`, and `scylladb`. Every service rejects any other value at startup.
+
+#### `AETHERNET_POSTGRES_URL`
+
+Default empty. A full connection URL. When set, the discrete host, database, user, and password production checks are skipped.
+
+#### `AETHERNET_POSTGRES_HOST`
+
+Default `127.0.0.1`. The database host. In production with `postgres` and no URL it must not be `127.0.0.1` or `localhost`.
+
+#### `AETHERNET_POSTGRES_PORT`
+
+Default `5432`. The database port. Integer 1 to 65535.
+
+#### `AETHERNET_POSTGRES_DATABASE`
+
+Default `aethernet`. The database name. Must be non-empty.
+
+#### `AETHERNET_POSTGRES_USERNAME`
+
+Default `aethernet`. The role. Must be non-empty.
+
+#### `AETHERNET_POSTGRES_PASSWORD`
+
+Default `aethernet`. The password. The literal `aethernet` is rejected in production. `CHANGE_ME` is not.
+
+#### `AETHERNET_POSTGRES_SSL`
+
+Default `false`. TLS to the database. Must be `true` or `false`. In production it must be `true` unless `AETHERNET_SELF_HOSTED=true`.
+
+#### `AETHERNET_POSTGRES_SSL_CA`
+
+Default empty. A CA certificate in PEM form. Used only when SSL is on.
+
+#### `AETHERNET_POSTGRES_MAX_CONNECTIONS`
+
+Default `20`. Pool size. Integer 1 to 1000, per process. The total is the sum across every container. Compose sets 25 for `api` and `worker` and 20 for the database-backed shards.
+
+#### `AETHERNET_POSTGRES_KV_TABLE`
+
+Default `aethernet_kv`. The key-value table name. Must match a safe Postgres identifier or startup fails.
+
+#### `AETHERNET_POSTGRES_PREPARED_STATEMENTS`
+
+Default `true`. Named prepared statements. Must be `true` or `false`. Compose passes it in the shared block, so one value governs `api`, `worker` and the Rust services at once. Set it to `false` behind a transaction-pooling pooler such as PgBouncer, where a named statement outlives the session that declared it.
+
+Cassandra or Scylla is an alternative backend, selected with `AETHERNET_DATABASE_BACKEND=cassandra`. Supply a reachable database and configure the settings below when selecting it. The bundled stack uses Postgres and does not include a Cassandra or Scylla service.
+
+#### `AETHERNET_CASSANDRA_HOSTS`
+
+Default `127.0.0.1`. Contact points. Comma separated. The Rust services normalise each entry to host and port, with IPv6 bracketed.
+
+#### `AETHERNET_CASSANDRA_PORT`
+
+Default `9042`. The port. Integer.
+
+#### `AETHERNET_CASSANDRA_KEYSPACE`
+
+Default `aethernet`. The keyspace. Must exist already.
+
+#### `AETHERNET_CASSANDRA_LOCAL_DC`
+
+Default `datacenter1`. The local datacentre. Read by `api` and `worker` only. The Rust services ignore it.
+
+#### `AETHERNET_CASSANDRA_USERNAME`
+
+Default empty. The login. Empty means no authentication.
+
+#### `AETHERNET_CASSANDRA_PASSWORD`
+
+Default empty. The password. Empty means no authentication.
+
+## Cache and key-value
+
+The bundled stack requires Valkey for shared cache, live updates and deletion queues. General background jobs use [NATS JetStream](#message-bus-and-internal-services). Change these settings only when customising the cache or connecting an external Redis-compatible service.
+
+#### `AETHERNET_KV_URL`
+
+Default `redis://localhost:6379/0`. The Redis-compatible service address. The `admin` service defaults to empty instead. Compose sets `redis://valkey:6379/0`.
+
+#### `AETHERNET_KV_MODE`
+
+Default `standalone`. Use `standalone` for a single Valkey server or `cluster` for a Redis-compatible cluster.
+
+#### `AETHERNET_KV_PROVIDER`
+
+Default `redis`, which is the only accepted value.
+
+#### `AETHERNET_SVC_CACHE_TTL_MS`
+
+Default `30000`. Soft cache lifetime in the internal services. Milliseconds. The `users` and `messages` routers ignore this setting because they keep no configurable response cache. Their shard caches still honour it.
+
+#### `AETHERNET_SVC_CACHE_HARD_TTL_MS`
+
+Default `600000`. Hard cache lifetime. Clamped to at least the soft TTL.
+
+#### `AETHERNET_SVC_CACHE_MAX_ENTRIES`
+
+Default `100000`. Cache entry ceiling. Per process. The `users` and `messages` routers ignore this setting because they keep no configurable response cache. Their shard caches still honour it.
+
+#### `AETHERNET_GIFS_SHARD_CACHE_MAX_BYTES`
+
+Default `536870912`. GIF cache size. Must be at least 16777216. Set it to 134217728 to keep the cache inside the `256mb` ceiling `AETHERNET_GIFS_SHARD_MEMORY_LIMIT` gives `gifs-shard`.
+
+#### `AETHERNET_IP_BAN_REFRESH_INTERVAL_MS`
+
+Default `300000`. How often the API refreshes its IP-ban cache. A non-finite value or one at or below zero disables the timer.
+
+Keep persistent storage and the bundled `noeviction` policy to protect deletion queues and other shared state. Back up `valkey-data`. See [Volumes and buckets](#volumes-and-buckets) for recovery implications.
+
+## Object storage
+
+Every uploaded file lands in an S3-compatible object store, which the stack provides with SeaweedFS. `AETHERNET_S3_ACCESS_KEY_ID` and `AETHERNET_S3_SECRET_ACCESS_KEY` are required. The rest are optional.
+
+#### `AETHERNET_S3_ENDPOINT`
+
+Default `http://localhost:3900`. The S3 API address. `media-proxy` defaults to empty instead.
+
+#### `AETHERNET_S3_PUBLIC_ENDPOINT`
+
+No default. The host substituted into presigned URLs, which are the only place it appears.
+
+#### `AETHERNET_S3_FORCE_PATH_STYLE`
+
+Default `false`. Path-style addressing. `media-proxy` defaults to `true` instead. Compose sets `true`.
+
+#### `AETHERNET_S3_REGION`
+
+Default `local`. The region string. `media-proxy` defaults to `us-east-1`. Compose sets `us-east-1`.
+
+#### `AETHERNET_S3_ACCESS_KEY_ID`
+
+Default empty. The access key. Config validation requires it non-empty on `api` and `worker`. Optional for `media-proxy`.
+
+#### `AETHERNET_S3_SECRET_ACCESS_KEY`
+
+Default empty. The secret key. Config validation requires it non-empty on `api` and `worker`. Optional for `media-proxy`.
+
+#### `AETHERNET_S3_SESSION_TOKEN`
+
+Default empty. A temporary session token. Read by `media-proxy` only.
+
+#### `AETHERNET_S3_BUCKET_CDN`
+
+Default `aethernet`. Processed assets. `media-proxy` defaults to `cdn`.
+
+#### `AETHERNET_S3_BUCKET_UPLOADS`
+
+Default `aethernet-uploads`. Raw uploads. `media-proxy` defaults to `uploads`, `app-proxy` to `aethernet-uploads`.
+
+#### `AETHERNET_S3_BUCKET_DOWNLOADS`
+
+Default `aethernet-downloads`. Desktop build artefacts. Read by `api` and `worker`.
+
+#### `AETHERNET_S3_BUCKET_REPORTS`
+
+Default `aethernet-reports`. Abuse report evidence. Read by `api` and `worker`.
+
+#### `AETHERNET_S3_BUCKET_HARVESTS`
+
+Default `aethernet-harvests`. Data archives. Read by `api` and `worker`.
+
+#### `AETHERNET_S3_BUCKET_STATIC`
+
+Default `static`. Static assets. Read by `media-proxy` only in `static` mode, which the stack does not use. `api` and `worker` never read it, and `seaweedfs-init` does not create this bucket.
+
+A separate downloads provider is available. `AETHERNET_S3_DOWNLOADS_ENDPOINT`, `AETHERNET_S3_DOWNLOADS_PUBLIC_ENDPOINT`, `AETHERNET_S3_DOWNLOADS_FORCE_PATH_STYLE`, `AETHERNET_S3_DOWNLOADS_REGION`, `AETHERNET_S3_DOWNLOADS_ACCESS_KEY_ID`, and `AETHERNET_S3_DOWNLOADS_SECRET_ACCESS_KEY` take effect only when `AETHERNET_S3_DOWNLOADS_ENDPOINT` is non-empty, and they then replace the primary configuration for the downloads bucket.
+
+The Media Proxy read path has overrides of its own. All are optional.
+
+#### `AETHERNET_S3_READ_ENDPOINT`
+
+Falls back to `AETHERNET_S3_ENDPOINT`. The read-side S3 address. Must be http or https with a host, and have no credentials, query string, or fragment.
+
+#### `AETHERNET_S3_READ_BUCKET`
+
+Falls back to `AETHERNET_S3_BUCKET_CDN`. The read-side bucket. Read by `media-proxy` only.
+
+#### `AETHERNET_S3_READ_BUCKET_STYLE`
+
+Defaults to `path` when path style is on, else `virtual`. How the bucket appears in the URL. `path`, `virtual`, or `root`. Anything else is a startup error.
+
+#### `AETHERNET_S3_READ_SIGNED`
+
+Default `false`. Whether read requests are signed. Read by `media-proxy` only. Compose sets `true`, because `seaweedfs-init` installs an S3 identity and the store then refuses anonymous reads.
+
+Compose sets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, and `AWS_EC2_METADATA_DISABLED` for the AWS SDKs. No Aethernet code reads them directly.
+
+## Search
+
+The bundled stack provides Meilisearch for message search. These settings select and connect the search service.
+
+#### `AETHERNET_SEARCH_ENGINE`
+
+Default `elasticsearch`. Which engine is used. `elasticsearch` or `meilisearch`. Compose sets `meilisearch`.
+
+#### `AETHERNET_SEARCH_URL`
+
+Default `http://127.0.0.1:9200`. The engine address. Compose sets `http://meilisearch:7700`.
+
+#### `AETHERNET_SEARCH_API_KEY`
+
+Default empty. The API key. Meilisearch uses it as the key. Elasticsearch uses it as an API key that takes precedence over the username and password.
+
+#### `AETHERNET_SEARCH_USERNAME`
+
+Default empty. Basic auth user. Elasticsearch only. Ignored under Meilisearch.
+
+#### `AETHERNET_SEARCH_PASSWORD`
+
+Default empty. Basic auth password. Elasticsearch only.
+
+#### `AETHERNET_SEARCH_TLS_REJECT_UNAUTHORIZED`
+
+Default `true`. Certificate verification. Elasticsearch only. Never passed to the Meilisearch client.
+
+## Message bus and internal services
+
+The bundled stack requires NATS for communication between services and JetStream for background jobs. Compose supplies the connection settings. Change them when using an external NATS service, which must have JetStream enabled for the worker connection.
+
+#### `AETHERNET_NATS_URL`
+
+Default `nats://127.0.0.1:4222`. The core NATS address for `api`, `worker`, and `gateway`. The Gateway defaults to `nats://nats:4222` instead.
+
+#### `AETHERNET_NATS_CORE_URL`
+
+Alias of `AETHERNET_NATS_URL` on `api` and `worker`, read only when that name is unset. The core NATS address. Not read by the Gateway.
+
+#### `AETHERNET_NATS_JETSTREAM_URL`
+
+Default `nats://127.0.0.1:4222`. The JetStream address for `api` and `worker`. Compose uses `AETHERNET_NATS_URL` unless this setting is supplied separately.
+
+#### `AETHERNET_NATS_AUTH_TOKEN`
+
+Default empty. NATS authentication. Read by `api`, `worker`, `gateway`, and the internal services. The shipped NATS runs without authentication, and Compose forwards this name to every container that connects to it.
+
+#### `AETHERNET_SVC_NATS_URL`
+
+Default `nats://127.0.0.1:4222`. The NATS address for the internal services. A separate variable from `AETHERNET_NATS_URL`.
+
+#### `AETHERNET_GATEWAY_API_RPC_ENDPOINT`
+
+No default. Where the Gateway calls the API. Read by the Gateway.
+
+Compose configures the internal services. Change the following settings only when customising their deployment.
+
+#### `AETHERNET_SVC_NAME`
+
+Default `default`. The metrics prefix and the concurrency default. Changing it does not rename NATS subjects.
+
+#### `AETHERNET_SVC_MODE`
+
+Default `router`. Must be `router` or `shard`. Any other value prevents startup.
+
+#### `AETHERNET_SVC_SHARD_COUNT`
+
+Default `1`. How many shards exist. Fixed at 1 in the shipped stack.
+
+#### `AETHERNET_SVC_SHARD_ID`
+
+Derived from the numeric suffix of `POD_NAME`, else `0`. Which shard this process is. A shard ID at or above the shard count is a startup error.
+
+#### `AETHERNET_SVC_LISTEN_HOST`
+
+Default `0.0.0.0`. The bind address. Serves health and metrics only.
+
+#### `AETHERNET_SVC_PORT`
+
+Default `8090`. The health and metrics port. Not published.
+
+#### `AETHERNET_SVC_MAX_CONCURRENT_REQUESTS`
+
+Defaults to 192 for messages, 320 for snowflakes, 64 otherwise. In-flight request ceiling. The built-in defaults key off `AETHERNET_SVC_NAME`. Compose forwards `AETHERNET_SVC_MAX_CONCURRENT_REQUESTS` to `users`, `users-shard`, `messages`, and `messages-shard` at a default of 20, which pairs with their 20-connection Postgres pools, and leaves the other containers on the built-in defaults.
+
+#### `POD_NAME`
+
+No default. The shard ordinal source and node identity. Also read by the Gateway and by API RPC timing.
+
+For custom service routing, add these settings to the API container environment. The bundled Compose file does not forward them:
+
+- Snowflake service: `AETHERNET_SNOWFLAKE_SERVICE_SUBJECT` and `AETHERNET_SNOWFLAKE_SERVICE_NATS_CLIENT_NAME`.
+- Users service: `AETHERNET_USERS_SERVICE_SUBJECT` and `AETHERNET_USERS_SERVICE_NATS_CLIENT_NAME`.
+- GIF service: `AETHERNET_GIF_SERVICE_SUBJECT` and `AETHERNET_GIF_SERVICE_NATS_CLIENT_NAME`.
+
+Numeric settings require decimal safe integers. Surrounding whitespace is trimmed, and omitted or blank settings use the defaults. Explicit malformed or out-of-range values are rejected.
+
+- `AETHERNET_SNOWFLAKE_SERVICE_BATCH_SIZE`: defaults to `128`. Accepts 1 to 512.
+- `AETHERNET_SNOWFLAKE_SERVICE_LOW_WATERMARK`: defaults to `32`, capped below the batch size. Accepts 0 through batch size minus one.
+- `AETHERNET_SNOWFLAKE_SERVICE_MAX_BUFFER_AGE_MS`: defaults to `5000`. Accepts 1 to 60000 milliseconds.
+- `AETHERNET_SNOWFLAKE_SERVICE_REQUEST_TIMEOUT_MS`: defaults to `6000`. Accepts 1 to 60000 milliseconds.
+- `AETHERNET_USERS_SERVICE_TIMEOUT_MS`: defaults to `6000`. Accepts 1 to 2147483647 milliseconds.
+- `AETHERNET_USERS_SERVICE_INFLIGHT_MAX_ENTRIES`: defaults to `10000`. Accepts 0 through the largest safe integer.
+- `AETHERNET_GIF_SERVICE_TIMEOUT_MS`: defaults to `12000`. Accepts 1 to 2147483647 milliseconds.
+- `AETHERNET_GIF_SERVICE_REGISTER_SHARE_TIMEOUT_MS`: defaults to `3000`. Accepts 1 to 2147483647 milliseconds.
+
+A Snowflake low watermark of `0` disables background refill before the buffer is empty. A Users in-flight entry limit of `0` disables request coalescing. It is not a limit on concurrent requests.
+
+## Voice and LiveKit
+
+LiveKit is the media server for voice and video. `AETHERNET_LIVEKIT_API_KEY` and `AETHERNET_LIVEKIT_API_SECRET` are required for voice. The rest are optional.
+
+#### `AETHERNET_LIVEKIT_ENABLED`
+
+Default `false`. The master switch for all voice and video. Compose sets `true`.
+
+#### `AETHERNET_LIVEKIT_API_KEY`
+
+Default empty. The LiveKit API key. Compose fills it from `LIVEKIT_API_KEY`.
+
+#### `AETHERNET_LIVEKIT_API_SECRET`
+
+Default empty. The LiveKit secret. Compose fills it from `LIVEKIT_API_SECRET`.
+
+#### `AETHERNET_LIVEKIT_URL`
+
+Default empty. The client-facing LiveKit URL. Set it only when LiveKit is served from another host. `docker-compose.yml` never passes it empty: it builds the value from `AETHERNET_PUBLIC_ORIGIN`, or from `AETHERNET_PUBLIC_SCHEME`, `AETHERNET_DOMAIN` and `AETHERNET_PUBLIC_PORT` when the origin is unset, followed by `/livekit`. An empty value outside Compose has the API derive `wss://host/livekit` from the public API origin, or `ws://` under `http`, with a non-default port kept.
+
+#### `AETHERNET_LIVEKIT_USE_EXTERNAL_IP`
+
+Default `true`. Whether LiveKit discovers the address browsers dial by asking a STUN server. A host that cannot reach one over UDP fails to start with `could not resolve external IP: context deadline exceeded`. Set it to `false` and give `AETHERNET_LIVEKIT_NODE_IP` the address instead. Read only by the `livekit` service.
+
+#### `AETHERNET_LIVEKIT_NODE_IP`
+
+Default empty. The address LiveKit publishes in its ICE candidates. Empty leaves the choice to the discovery above, and with that discovery off LiveKit falls back to the container's own address, which no browser can reach. Set both together. `docker compose logs livekit` names the address in use as `nodeIP` on the starting line.
+
+#### `AETHERNET_LIVEKIT_STUN_PRIMARY`
+
+Default `stun.l.google.com:19302`. The first STUN server the discovery asks. Point it at another server to keep the discovery without reaching Google.
+
+#### `AETHERNET_LIVEKIT_STUN_SECONDARY`
+
+Default `stun1.l.google.com:19302`. The second STUN server, used the same way.
+
+#### `AETHERNET_LIVEKIT_INTERNAL_URL`
+
+Default empty. The server-side LiveKit control API. Compose sets `http://livekit:7880`.
+
+#### `AETHERNET_LIVEKIT_WEBHOOK_URL`
+
+Default empty. Where LiveKit posts webhooks. The route is exempt from user auth and from both client-IP middlewares.
+
+#### `AETHERNET_LIVEKIT_DEFAULT_REGION`
+
+No default. The default voice region. JSON with `id`, `name`, `emoji`, `latitude`, and `longitude`.
+
+#### `AETHERNET_LIVEKIT_TCP_PORT`
+
+Default `7881`. The TCP media port. Read by Compose only. Compose publishes it on the host and passes it to LiveKit as `rtc.tcp_port`, so the port LiveKit advertises in ICE candidates is the one the host forwards.
+
+#### `AETHERNET_LIVEKIT_UDP_PORT`
+
+Default `7882`. The UDP media port, published and passed to LiveKit as `rtc.udp_port` the same way.
+
+LiveKit media does not go through the edge. Compose publishes both media ports directly, so both must stay open in the host firewall and be forwarded to the host when it sits behind NAT. Compose points LiveKit at the webhook target `http://api:8080/webhooks/livekit` and configures no TURN server. A client that cannot use UDP falls back to ICE-TCP on the TCP port.
+
+Moving a media port is one line in `.env` followed by `docker compose up -d livekit`. Compose puts the same value on the host side of the mapping, on the container side, and on the `rtc` port LiveKit advertises in the ICE candidates it hands to clients.
+
+To rotate the key pair, set both names in `.env`, then run `docker compose up -d livekit api worker` to apply the change everywhere.
+
+The `Caddyfile` is a bind mount, so the edge reads the copy that sits on disk beside `docker-compose.yml`. Editing it takes `docker compose restart edge`, because `docker compose up -d` leaves a container alone when only a mounted file changed. An upgrade does that restart itself, which [What the script does](/operator/upgrading/#what-the-script-does) covers. A change to any LiveKit value in `.env` needs `docker compose up -d`, because `restart` reuses the existing container with its old environment.
+
+Voice reconciliation has moved from `worker` to the separate recon service. The old `AETHERNET_API_WORKER_ENABLE_VOICE_RECONCILIATION` and `AETHERNET_API_WORKER_VOICE_RECONCILIATION_*` settings no longer control it. The bundled Compose stack does not start the recon service.
+
+## Email
+
+Email is off by default, and the conditions below turn it on. The switch must be on, and the provider must be `smtp` with a complete SMTP configuration, meaning `AETHERNET_EMAIL_FROM_EMAIL`, `AETHERNET_EMAIL_SMTP_HOST`, `AETHERNET_EMAIL_SMTP_PORT`, `AETHERNET_EMAIL_SMTP_USERNAME`, and `AETHERNET_EMAIL_SMTP_PASSWORD` are all non-empty. All are optional.
+
+The same conditions turn on a DNS check at registration. The check runs when email is on by the rule above. The dashboard switch and the SMTP values decide it along with the variable. The address domain has to publish an `MX` record, or an `A` or `AAAA` record as a fallback, and an address at a domain that publishes neither is answered `That email domain cannot receive mail.` however well formed it is. The first admin account is no exception, so an owner address at a `.lan`, `.internal` or `home.arpa` name needs email left off.
+
+#### `AETHERNET_EMAIL_ENABLED`
+
+`.env.example` `false`. The delivery switch. The admin dashboard value wins over this.
+
+#### `AETHERNET_EMAIL_PROVIDER`
+
+`.env.example` `none`. The transport. `smtp` or `none`. Anything else fails startup.
+
+#### `AETHERNET_EMAIL_FROM_EMAIL`
+
+`.env.example` `noreply@example.com`. The sender address. Compose falls back to `noreply@localhost`.
+
+#### `AETHERNET_EMAIL_FROM_NAME`
+
+`.env.example` `Aethernet`. The sender name. An empty value sets an empty sender name.
+
+#### `AETHERNET_EMAIL_APP_BASE_URL`
+
+`.env.example` empty. The base URL used in links. Must be http or https with no username, password, query, or fragment, or the API fails at boot. Falls back to the app endpoint.
+
+#### `AETHERNET_EMAIL_SMTP_HOST`
+
+`.env.example` empty. The SMTP host. Setting any SMTP variable creates the whole SMTP block, which is absent by default.
+
+#### `AETHERNET_EMAIL_SMTP_PORT`
+
+`.env.example` `587`. The SMTP port. Falls back to 587.
+
+#### `AETHERNET_EMAIL_SMTP_USERNAME`
+
+`.env.example` empty. The SMTP login. Part of the completeness check.
+
+#### `AETHERNET_EMAIL_SMTP_PASSWORD`
+
+`.env.example` empty. The SMTP password. Part of the completeness check.
+
+#### `AETHERNET_EMAIL_SMTP_SECURE`
+
+`.env.example` `true`. Implicit TLS. Defaults to `true` whenever the SMTP block exists.
+
+The API reads `AETHERNET_EMAIL_WEBHOOK_SECRET` for inbound delivery webhooks. Neither `.env.example` nor `docker-compose.yml` has it.
+
+The API registers `POST /webhooks/sweego` on every deployment. The route authenticates the Standard Webhooks header triple `webhook-id`, `webhook-timestamp`, and `webhook-signature` against that secret, and answers 404 `Email not enabled` while email is off. The route sits outside the client-IP exempt list that covers `/webhooks/livekit`, so give the provider a delivery URL that goes through the edge, `https://chat.example.com/api/webhooks/sweego`.
+
+Only `api` and `worker` build the mail service, so recreating those two is enough after a change.
+
+## CAPTCHA
+
+All are optional.
+
+| Variable | Value in `.env.example` | Controls |
+| --- | --- | --- |
+| AETHERNET_CAPTCHA_ENABLED | `false` | The [CAPTCHA](/topics/captcha/) switch. Startup fails when it is `true` without a provider and that provider's keys |
+| AETHERNET_CAPTCHA_PROVIDER | `none` | The provider. `hcaptcha`, `turnstile`, or `none`. Anything else fails startup |
+
+`AETHERNET_CAPTCHA_HCAPTCHA_SITE_KEY`, `AETHERNET_CAPTCHA_HCAPTCHA_SECRET_KEY`, `AETHERNET_CAPTCHA_TURNSTILE_SITE_KEY`, and `AETHERNET_CAPTCHA_TURNSTILE_SECRET_KEY` ship empty in `.env.example` and the shipped Compose file forwards them all. Set the pair the selected provider needs. The admin dashboard's Runtime Integrations panel sets the same provider and keys, and a value stored there wins over the environment. An instance that configures CAPTCHA only there must leave `AETHERNET_CAPTCHA_ENABLED` at `false`, because the boot check reads the environment alone.
+
+## Single sign-on and passkeys
+
+All are optional.
+
+#### `AETHERNET_SSO_ALLOW_PRIVATE_ADDRESSES`
+
+Default `false`. Whether the SSO provider URL may resolve to a private address. Off by default as SSRF protection. Turn it on only for split-horizon DNS or a LAN identity provider.
+
+#### `AETHERNET_PASSKEY_RP_ID`
+
+Defaults to `AETHERNET_BASE_DOMAIN`. The WebAuthn relying party identifier. Changing it invalidates every passkey already registered.
+
+#### `AETHERNET_PASSKEY_RP_NAME`
+
+Default `Aethernet`. The relying party name browsers display. Does not follow `AETHERNET_DOMAIN`.
+
+#### `AETHERNET_PASSKEY_ADDITIONAL_ALLOWED_ORIGINS`
+
+The complete accepted origin set, comma separated. Despite the name, an explicit value replaces the defaults and must list every origin clients use. Compose defaults it to the public web app origin. When the variable is omitted outside Compose, the API accepts the configured app origin alongside the built-in Aethernet web and Android origins. An empty list selects only the configured app origin.
+
+Each web entry must be an HTTP(S) origin with no credentials, path beyond an optional final slash, query, or fragment. Web origins are normalised to browser form using the configured public port unless the entry supplies one. Android entries must use `android:apk-key-hash:` followed by the signing certificate's SHA-256 fingerprint in canonical, unpadded base64url (43 characters). Invalid entries and control characters fail startup.
+
+:::caution[Changing the relying party identifier invalidates every passkey]
+A passkey is bound to the `AETHERNET_PASSKEY_RP_ID` it was registered under. Members have to enrol again after a change, so pick the value before opening registration.
+:::
+
+## Bluesky connections
+
+Bluesky connections are off by default. Enable them in the admin dashboard's Runtime Integrations panel and supply an ES256 private signing key with a unique key identifier. The public API must serve the [client metadata and signing keys](/http-api/connections/#get-bluesky-client-metadata).
+
+For environment-based configuration, use `AETHERNET_AUTH_BLUESKY_ENABLED`, `AETHERNET_AUTH_BLUESKY_KEYS`, and the optional `AETHERNET_AUTH_BLUESKY_CLIENT_NAME`, `AETHERNET_AUTH_BLUESKY_CLIENT_URI`, `AETHERNET_AUTH_BLUESKY_LOGO_URI`, `AETHERNET_AUTH_BLUESKY_TOS_URI`, and `AETHERNET_AUTH_BLUESKY_POLICY_URI` settings. Add them to the API container environment. The shipped Compose file does not forward them.
+
+## Web push
+
+`AETHERNET_VAPID_PUBLIC_KEY` and `AETHERNET_VAPID_PRIVATE_KEY` are required. `AETHERNET_VAPID_EMAIL` is optional.
+
+| Variable | Value in `.env.example` | Controls |
+| --- | --- | --- |
+| AETHERNET_VAPID_PUBLIC_KEY | `CHANGE_ME` | The VAPID public key. Base64url of the 65-byte uncompressed P-256 point |
+| AETHERNET_VAPID_PRIVATE_KEY | `CHANGE_ME` | The VAPID private key. Base64url of the 32-byte scalar, and the matching half of the pair |
+| AETHERNET_VAPID_EMAIL | unset | The VAPID contact address. Compose derives `admin@` followed by `AETHERNET_DOMAIN` when it is unset |
+
+The Gateway reads the same names. A malformed pair, or a private key that does not derive the public point, does not stop it. It records the fault in its log at startup and then drops every web push notification.
+
+`AETHERNET_GATEWAY_PUSH_ENABLED` is read by the Gateway alone, defaults to `true`, and turns that check off when it is `false`.
+
+## Mobile push
+
+Both `api` and `gateway` read the APNs and FCM names. None appear in `.env.example` or in `docker-compose.yml`, so configuring mobile push means editing the Compose file. All are optional.
+
+#### `AETHERNET_PUSH_APNS_ENABLED`
+
+Default `false`. The APNs switch. Must be set on both `api` and `gateway`.
+
+#### `AETHERNET_PUSH_APNS_TEAM_ID`
+
+No default. The Apple team. Paired with the key ID.
+
+#### `AETHERNET_PUSH_APNS_KEY_ID`
+
+No default. The signing key ID. Paired with the team ID.
+
+#### `AETHERNET_PUSH_APNS_PRIVATE_KEY`
+
+No default. The signing key in PEM form. Set exactly one of this and the path.
+
+#### `AETHERNET_PUSH_APNS_PRIVATE_KEY_PATH`
+
+No default. A path to the signing key. Must be readable inside the container.
+
+#### `AETHERNET_PUSH_APNS_DEFAULT_ENVIRONMENT`
+
+Default `production`. Which APNs environment is used. `production` or `development`.
+
+#### `AETHERNET_PUSH_APNS_APPS`
+
+Default `[]`. Per-app APNs configuration. JSON array. An entry with no `app_id` fails startup.
+
+#### `AETHERNET_PUSH_FCM_ENABLED`
+
+Default `false`. The FCM switch. Must be set on both `api` and `gateway`.
+
+#### `AETHERNET_PUSH_FCM_PROJECT_ID`
+
+No default. The Firebase project. Paired with the client email.
+
+#### `AETHERNET_PUSH_FCM_CLIENT_EMAIL`
+
+No default. The service account address. Paired with the project.
+
+#### `AETHERNET_PUSH_FCM_PRIVATE_KEY`
+
+No default. The service account key. Use one of the key sources.
+
+#### `AETHERNET_PUSH_FCM_PRIVATE_KEY_PATH`
+
+No default. A path to the key. Must be readable inside the container.
+
+#### `AETHERNET_PUSH_FCM_SERVICE_ACCOUNT_JSON_PATH`
+
+No default. A path to the whole service account JSON. Must be readable inside the container.
+
+#### `AETHERNET_PUSH_FCM_TOKEN_URI`
+
+Default `https://oauth2.googleapis.com/token`. The OAuth token endpoint. Change only for a proxy or a test double.
+
+#### `AETHERNET_PUSH_FCM_APPS`
+
+Default `[]`. Per-app FCM configuration. JSON array, under the same `app_id` rule as APNs.
+
+## Payments
+
+Stripe billing, which the shipped stack keeps off. All are optional.
+
+#### `AETHERNET_STRIPE_ENABLED`
+
+Default `false`. The Stripe switch. Compose hardcodes `false`, so a self-hosted instance cannot enable it from `.env`.
+
+#### `AETHERNET_STRIPE_SECRET_KEY`
+
+Default empty. The Stripe secret key. Not forwarded by the shipped Compose file.
+
+#### `AETHERNET_STRIPE_WEBHOOK_SECRET`
+
+Default empty. The webhook signing secret. Not forwarded by the shipped Compose file.
+
+#### `AETHERNET_STRIPE_PRICES`
+
+Default `{}`. Every price ID at once. JSON object. The individual price variables are declared after it and win.
+
+Individual price variables also exist, one per product and currency: `AETHERNET_STRIPE_PRICE_MONTHLY_`, `AETHERNET_STRIPE_PRICE_YEARLY_`, `AETHERNET_STRIPE_PRICE_GIFT_1_MONTH_` and `AETHERNET_STRIPE_PRICE_GIFT_1_YEAR_` in USD, EUR, BRL, DKK, INR, NOK, PLN, SEK, and TRY, plus `AETHERNET_STRIPE_PRICE_VISIONARY_` and `AETHERNET_STRIPE_PRICE_GIFT_VISIONARY_` in USD and EUR.
+
+#### `AETHERNET_STRIPE_LEGACY_PRICES`
+
+Default `{}`. Retired price IDs, keyed by the same slot names `AETHERNET_STRIPE_PRICES` uses, each mapped to a list: `{"monthly_brl": ["price_..."]}`. JSON object. Existing subscriptions on these prices keep renewing. The localised checkout catalogue uses `AETHERNET_STRIPE_PRICES` alone.
+
+Repricing a slot is ordered, and the order is not reversible without failed invoices. Create the new price in Stripe, move the ID it replaces into this variable, roll the API, and only then point `AETHERNET_STRIPE_PRICES` at the new price. A price ID that neither variable names is unknown to the API: a renewal invoice on it fails the webhook with `Unknown product for invoice renewal`, a checkout completing on it fails with `Unknown price ID for checkout session`, and both keep failing until the ID is registered. The API answers Stripe as soon as the signature verifies and hands the event to `worker`, so the retries are the `processStripeWebhook` job's own: the Stripe dashboard shows the delivery as succeeded and the error is in the `worker` logs. Keep a retired ID listed for as long as any subscription still bills on it, which for a yearly price is at least a year after the switch.
+
+## Moderation and abuse
+
+All are optional.
+
+#### `AETHERNET_NCMEC_ENABLED`
+
+Default `false`. NCMEC reporting. Compose hardcodes `false`.
+
+#### `AETHERNET_NCMEC_BASE_URL`
+
+Default empty. The reporting endpoint. Required when reporting is on.
+
+#### `AETHERNET_NCMEC_USERNAME`
+
+Default empty. The reporting login. Required when reporting is on.
+
+#### `AETHERNET_NCMEC_PASSWORD`
+
+Default empty. The reporting password. Required when reporting is on.
+
+#### `AETHERNET_NCMEC_REPORTER_EMAIL`
+
+Default empty. The contact address on reports. Required when reporting is on.
+
+#### `AETHERNET_CLAMAV_ENABLED`
+
+Default `false`. Upload virus scanning. Compose hardcodes `false`, and no ClamAV container ships.
+
+#### `AETHERNET_CLAMAV_HOST`
+
+Default `127.0.0.1`. The scanner host. Needs a reachable scanner.
+
+#### `AETHERNET_CLAMAV_PORT`
+
+Default `3310`. The scanner port. Integer.
+
+#### `AETHERNET_CLAMAV_FAIL_OPEN`
+
+Default `false`. Behaviour when the scanner is unreachable. With scanning on and this off, an unreachable scanner rejects every upload.
+
+#### `AETHERNET_API_CONTENT_MODERATION_NSFW_THRESHOLD`
+
+Default `0.7`. The API-side NSFW score cutoff. No range check. Distinct from the Media Proxy threshold, which defaults to `0.85`.
+
+#### `AETHERNET_RISK_INTEGRATION_ENABLED`
+
+Default `false`. IP intelligence. Needs an ipinfo key to do anything.
+
+#### `AETHERNET_RISK_IPINFO_API_KEY`
+
+Default empty. The ipinfo key. Paired with `AETHERNET_RISK_INTEGRATION_ENABLED`.
+
+#### `AETHERNET_ACCOUNT_POLICY_DSL`
+
+No default. The account risk policy. JSON. Malformed JSON fails startup, and an unknown key in a well-formed policy surfaces when the policy runs.
+
+#### `AETHERNET_RISK_TOR_BLOCK_ALL_RELAYS`
+
+Default `false`. Whether every Tor relay is blocked. Covers entry and middle relays as well as exit nodes.
+
+#### `AETHERNET_RISK_TOR_REVERSE_DNS_HEURISTIC`
+
+Default `false`. Reverse DNS Tor detection. Adds a lookup to the request path.
+
+#### `AETHERNET_RISK_TOR_REVERSE_DNS_TIMEOUT_MS`
+
+Default `750`. The lookup timeout. Milliseconds.
+
+#### `AETHERNET_ABUSE_INBOUND_PHONE_COUNTRY_CODES`
+
+Default empty. Allowed inbound phone countries. Comma separated, passed through unvalidated.
+
+#### `AETHERNET_ABUSE_PHONE_INBOUND_REQUIRED_PREFIXES`
+
+Default empty. Required inbound prefixes. Comma separated.
+
+#### `AETHERNET_ABUSE_DIRECT_CONTACT_SPAM_ENABLED`
+
+Default `false`. Direct contact spam detection.
+
+#### `AETHERNET_ABUSE_DIRECT_CONTACT_SPAM_COUNTRY_CODES`
+
+Default empty. Countries the rule applies to. Comma separated, unvalidated.
+
+#### `AETHERNET_ABUSE_DIRECT_CONTACT_SPAM_DISTINCT_TARGET_THRESHOLD`
+
+Default `25`. Distinct targets before the rule fires. Integer.
+
+#### `AETHERNET_ABUSE_DIRECT_CONTACT_SPAM_TARGET_WINDOW_MS`
+
+Default `7200000`. The observation window. Milliseconds, two hours by default.
+
+#### `AETHERNET_ABUSE_DIRECT_CONTACT_SPAM_ACTION`
+
+Default `flag_spammer`. What happens when it fires. `flag_spammer` or `suppress_delivery`. Anything else fails startup.
+
+#### `AETHERNET_BLOCKLIST_FEEDS_ENABLED`
+
+Defaults to the inverse of `AETHERNET_SELF_HOSTED`. External blocklist feeds. Off by default on a self-hosted instance.
+
+A second family, unrelated to the rules above, tunes the IP auto-banner: `AETHERNET_ABUSE_WINDOW_MS`, the `AETHERNET_ABUSE_THRESHOLD_` names, the `AETHERNET_ABUSE_TOKEN_DIVERSITY_` names, `AETHERNET_ABUSE_BAN_TTL_SEC`, `AETHERNET_ABUSE_BATCH_FLUSH_MS`, `AETHERNET_ABUSE_MAX_BATCH_TICKS`, `AETHERNET_ABUSE_MAX_NEW_TOKENS_PER_TICK`, `AETHERNET_ABUSE_MAX_TRACKED_IPS`, `AETHERNET_ABUSE_MAX_TOKEN_HASHES_PER_IP`, `AETHERNET_ABUSE_MIN_SCORE_FOR_LOOKUP`, `AETHERNET_ABUSE_MIN_TOKENS_FOR_LOOKUP`, and `AETHERNET_ABUSE_REQUIRED_SCORE_WINDOWS_FOR_AUTO_BAN`. All are read directly from the environment, none are in `.env.example` or the Compose file, and a non-finite value or one at or below zero falls back to the default.
+
+Other names in that family limit how often the auto-banner buys an IP classification from ipinfo. A shared claim lets one replica do the lookup for the others. With the claim off, every API replica looks up the same attacking IP at the same moment, so one IP costs one lookup per replica.
+
+- `AETHERNET_ABUSE_IP_CLASS_CLAIM_ENABLED` defaults to `1` and gates the shared claim. It is read as a string, and only `0` turns the claim off.
+- `AETHERNET_ABUSE_IP_CLASS_CLAIM_TTL_SEC` defaults to `15` seconds and sets how long a replica holds that claim.
+- `AETHERNET_ABUSE_IP_CLASS_PENDING_TTL_MS` defaults to `20000` milliseconds and sets how long a replica that lost the claim waits before it tries again.
+- `AETHERNET_ABUSE_IP_CLASS_NEGATIVE_TTL_MS` defaults to `300000` milliseconds and sets how long a failed classification is remembered.
+- `AETHERNET_ABUSE_IP_CLASS_HINT_TTL_MS` defaults to `600000` milliseconds and sets how long a class sent by another replica stays usable.
+
+For these numeric settings, a non-finite value or one at or below zero falls back to the default.
+
+A `AETHERNET_IPINFO_BUDGET_` family caps what the instance spends at ipinfo. `AETHERNET_IPINFO_BUDGET_ENABLED` defaults to `1`, and `0` turns off all shedding. `AETHERNET_IPINFO_BUDGET_MONTHLY_MAX` defaults to `140000` and is the ceiling for one UTC calendar month. Lookups run at the priorities below, each with a share of that ceiling and a token bucket for bursts refilled once a minute.
+
+- Admin IP bans and scheduled deletion checks are critical. They reach the full ceiling, with a burst of `60` from `AETHERNET_IPINFO_BUDGET_CRITICAL_BURST` refilled at `60` a minute by `AETHERNET_IPINFO_BUDGET_CRITICAL_REFILL_PER_MIN`.
+- Registration risk is standard. It stops at `AETHERNET_IPINFO_BUDGET_STANDARD_MONTHLY_PCT` percent of the ceiling, default `90`, with a burst of `240` from `AETHERNET_IPINFO_BUDGET_STANDARD_BURST` refilled at `120` a minute by `AETHERNET_IPINFO_BUDGET_STANDARD_REFILL_PER_MIN`.
+- The IP auto-banner is background. It stops at `AETHERNET_IPINFO_BUDGET_BACKGROUND_MONTHLY_PCT` percent, default `60`, with a burst of `120` from `AETHERNET_IPINFO_BUDGET_BACKGROUND_BURST` refilled at `30` a minute by `AETHERNET_IPINFO_BUDGET_BACKGROUND_REFILL_PER_MIN`.
+
+Background lookups stop first and critical lookups stop last. A denied lookup returns an unavailable result. If the key-value store fails, lookups remain allowed at every priority, so an outage can increase usage beyond these budgets.
+
+Local MaxMind data can reduce registration-risk lookups. Set `AETHERNET_RISK_IPINFO_PRESCREEN_ENABLED` to `1` or `true`, in any letter case, and fill `AETHERNET_RISK_IPINFO_PRESCREEN_ALLOW_ASNS` with comma-separated ASN numbers. Non-numeric entries are dropped. An IP skips ipinfo only when MaxMind supplies its country and an allowed ASN, and the organisation is not a commercial privacy provider, education network or cellular network.
+
+## Stored instance policy
+
+Use the [admin dashboard](#runtime-settings-in-the-admin-dashboard) or [Admin instance API](/admin-api/instance/) to change saved settings. Missing settings use their documented defaults. Invalid JSON, field types, identifiers or out-of-range values cause an error instead of silently resetting security or registration policy.
+
+Invalid saved configuration prevents the API and worker from starting. If a running process cannot apply an update, it logs the error and keeps its previous valid settings. Check the reported section and field paths, repair the saved configuration, then retry. It is not repaired automatically.
+
+Older configurations retain these migration rules:
+
+- Gateway rollout accepts `nats_request_timeout_ms` only when `rpc_request_timeout_ms` is absent. Both require an integer from 1000 to 60000. Use the current name in Admin requests.
+- Registration accepts `adminRegistrationUrlsEnabled` only when `admin_registration_urls_enabled` is absent. Missing registration settings default to `open` with admin registration URLs enabled.
+- Missing SSO settings default to disabled, with enforcement following enablement and automatic provisioning enabled. Stored flags require `true` or `false`.
+- SSO allowed domains accept a JSON string array or a legacy comma-separated list of at most 100 entries. Domains are trimmed, lowercased, IDNA encoded and deduplicated. An empty list leaves domains unrestricted. Invalid lists must be repaired even while SSO is disabled.
+- Missing registration URL and pending-registration lists mean empty lists. Invalid records are rejected rather than discarded. Timestamps require an explicit UTC marker or offset, and null is accepted only for nullable fields.
+
+Explicit `false` values and supported null clears remain valid. Branding and integration strings retain their documented trimming and blank-value behaviour. Media size and lifetime adjustments also remain unchanged. These checks do not make a multi-section update atomic. Read back the result after a failed write before retrying.
+
+## Limits
+
+No environment variable changes an instance limit. Use the admin dashboard's Limit Config page or the [Admin API](/admin-api/). Effective limits combine saved settings, deployment defaults and premium policy. Changes take effect after a short propagation delay. Clients receive the [limit configuration object](/http-api/instance/#limit-configuration-object).
+
+Request concurrency is separate from instance limits, and each process sets its own. All are optional.
+
+#### `AETHERNET_API_MAX_INFLIGHT_REQUESTS`
+
+Default `512`. The API in-flight ceiling. Integer 1 to 100000, checked at startup.
+
+#### `AETHERNET_GATEWAY_HTTP_RPC_MAX_CONCURRENCY`
+
+Default `512`. Gateway HTTP RPC concurrency.
+
+#### `AETHERNET_GATEWAY_NATS_RPC_MAX_HANDLERS`
+
+Default `512`. Gateway NATS handler count.
+
+#### `AETHERNET_DISABLE_RATE_LIMITS`
+
+Default `false`. Turns rate limits off. Read by the API and, as a raw presence check, by the Gateway.
+
+#### `AETHERNET_RELAX_REGISTRATION_RATE_LIMITS`
+
+Default `false`. Loosens registration rate limits. Reaches production containers if set.
+
+## Telemetry, logging and build metadata
+
+All are optional.
+
+#### `LOG_LEVEL`
+
+Defaults to `debug` in development, `info` otherwise. The Node log level. Read by `api` and `worker`.
+
+#### `RUST_LOG`
+
+Default `info`. The Rust log filter. Read by `media-proxy`, `app-proxy`, `admin`, and the internal services. Not in `.env.example` or the Compose file.
+
+#### `AETHERNET_GATEWAY_LOGGER_LEVEL`
+
+Default `info`. The Gateway log level. Compose sets `info`.
+
+#### `LOGGER_LEVEL`
+
+Falls back to `AETHERNET_GATEWAY_LOGGER_LEVEL`. The Gateway log level at runtime. Overrides the prefixed name.
+
+#### `BUILD_VERSION`
+
+Default `dev`. The reported build. Baked into the images. A fallback outside development prints a warning.
+
+#### `RELEASE_CHANNEL`
+
+Default `stable`. The reported channel. Only `canary` is recognised as non-stable.
+
+#### `AETHERNET_TELEMETRY_ENABLED`
+
+Defaults to `false` at the Gateway's environment layer. Gateway telemetry. Read only by the Gateway, and in neither `.env.example` nor the Compose file.
+
+#### `HOSTNAME`
+
+Set by Docker. Node identity in metrics and logs. Also used by the IP auto-banner.
+
+#### `AETHERNET_ENV`
+
+Default `development`. The runtime mode. `development`, `production`, or `test`. Compose pins `production`, which gates Postgres validation and the admin cookie flags.
+
+#### `AETHERNET_SELF_HOSTED`
+
+Default `false`. The self-host switch. Compose sets `true`. It relaxes the production Postgres SSL requirement, seeds the limit tier, gates registration, billing and discovery controllers, and turns blocklist feeds off.
+
+`/_metrics` on `api`, `media-proxy`, and `gateway`, plus the Gateway's `/_health/ready`, `/_health/drain`, and `/_health/undrain`, are gated to loopback peers, so no proxy reaches them. The probes that work from outside are `/api/_health`, `/gateway/_health`, `/media/_health`, and the edge's own `/_health`.
+
+## Feature flags and development switches
+
+All are optional.
+
+#### `AETHERNET_DISCOVERY_ENABLED`
+
+Default `true`. The public guild [discovery](/http-api/discovery/) surface. With it off, discovery search, discovery join, and the guild discovery application routes return 400 `DISCOVERY_DISABLED`.
+
+#### `AETHERNET_DISCOVERY_MIN_MEMBER_COUNT`
+
+Default `1`. Minimum members for discovery eligibility. Integer.
+
+#### `AETHERNET_DELETION_GRACE_PERIOD_HOURS`
+
+Default `336`. How long a deleted account is recoverable. Forced to 0.01 hours when `AETHERNET_TEST_MODE_ENABLED` is on.
+
+#### `AETHERNET_API_PRESIGNED_ATTACHMENT_UPLOADS_ENABLED`
+
+Default `false`. Presigned attachment uploads. Compose sets `true`.
+
+#### `AETHERNET_API_PRESIGNED_DOWNLOADS_ENABLED`
+
+Default `false`. Presigned downloads. Applies to the downloads bucket.
+
+#### `AETHERNET_API_PRESIGNED_HARVEST_DOWNLOADS_ENABLED`
+
+Default `true`. Presigned harvest downloads. Applies to the harvests bucket.
+
+#### `AETHERNET_API_EMBEDS_OEMBED_HTML_ENABLED`
+
+Default `false`. oEmbed HTML in embeds.
+
+#### `AETHERNET_API_EMBEDS_OEMBED_HTML_ALLOW_UNTRUSTED_ON_SELF_HOSTED`
+
+Default `false`. Untrusted oEmbed HTML on a self-hosted instance. Security relevant. Leave it off.
+
+#### `AETHERNET_API_EMBEDS_OEMBED_HTML_ALLOWED_HOSTS`
+
+Default empty. Hosts allowed to supply oEmbed HTML. Comma separated.
+
+#### `AETHERNET_API_EMBEDS_CACHE_DEFAULT_TTL_SECONDS`
+
+Default `86400`. Default embed cache lifetime. Seconds.
+
+#### `AETHERNET_API_EMBEDS_CACHE_MAX_TTL_SECONDS`
+
+Default `604800`. Maximum embed cache lifetime. Seconds.
+
+#### `AETHERNET_API_EMBEDS_CACHE_MIN_TTL_SECONDS`
+
+Default `300`. Minimum embed cache lifetime. Seconds.
+
+#### `AETHERNET_API_EMBEDS_CACHE_RESPECT_REMOTE_TTL`
+
+Default `true`. Whether a remote cache header is honoured. Clamped by `AETHERNET_API_EMBEDS_CACHE_MIN_TTL_SECONDS` and `AETHERNET_API_EMBEDS_CACHE_MAX_TTL_SECONDS`.
+
+#### `AETHERNET_API_UNFURL_IGNORED_HOSTS`
+
+Default empty. Hosts never unfurled. Comma separated, unvalidated.
+
+#### `AETHERNET_API_DESKTOP_GITHUB_REDIRECT_COUNTRIES`
+
+Default empty. Countries redirected to GitHub for desktop downloads. Each entry must be two uppercase letters or the API fails at boot.
+
+#### `AETHERNET_TEST_MODE_ENABLED`
+
+Default `false`. Test mode. Collapses the deletion grace period. Reaches production containers if set.
+
+#### `AETHERNET_TEST_HARNESS_TOKEN`
+
+No default. The test harness credential. Reaches production containers if set.
+
+#### `AETHERNET_VALIDATE_RESPONSES`
+
+Defaults to on outside production. Response schema validation. Costs latency when forced on.
+
+#### `AETHERNET_KLIPY_API_KEY`
+
+Default empty. The Klipy GIF provider key. GIF search reports itself unavailable while this and the admin dashboard key are both empty. Also read by `unfurl`, which accepts `KLIPY_API_KEY` as a fallback.
+
+#### `AETHERNET_YOUTUBE_API_KEY`
+
+Default empty. The YouTube Data API key. Also read by `unfurl`, which accepts `YOUTUBE_API_KEY` as a fallback.
+
+#### `AETHERNET_BUNNY_PURGE_ENABLED`
+
+Default `false`. Bunny CDN cache purging. Needs `AETHERNET_BUNNY_API_KEY` and `AETHERNET_BUNNY_PULL_ZONE_ID`.
+
+#### `AETHERNET_BUNNY_API_KEY`
+
+Default empty. The Bunny API key. Paired with the pull zone.
+
+#### `AETHERNET_BUNNY_PULL_ZONE_ID`
+
+Default `0`. The Bunny pull zone. Integer.
+
+#### `AETHERNET_GEOIP_DB_PATH`
+
+Default empty. The GeoIP database. A filesystem path, or an `s3://bucket/key` URL whose `download_path` query parameter is mandatory and must be absolute. `app-proxy` also accepts `MAXMIND_DB_PATH`. The API also reads an ASN database. On a filesystem path it looks for `GeoLite2-ASN.mmdb` in the same directory. On an `s3://` URL it needs an `asn_key` query parameter, and takes an optional absolute `asn_download_path` next to it. A missing ASN database is not an error, and the API falls back to ipinfo for ASN data.
+
+## Instance identity and branding
+
+None of these are in `.env.example` or in `docker-compose.yml`. Set branding from the admin dashboard instead. All are optional.
+
+#### `AETHERNET_APP_PRODUCT_NAME`
+
+Default `Aethernet`. The product name clients display. Also settable in the admin dashboard, which wins.
+
+#### `AETHERNET_APP_ICON_URL`
+
+Default empty. The client icon. Its origin is added to the CSP by `app-proxy`.
+
+#### `AETHERNET_APP_SYMBOL_URL`
+
+Default empty. The symbol mark. Its origin is added to the CSP by `app-proxy`.
+
+#### `AETHERNET_APP_LOGO_URL`
+
+Default empty. The logo. Its origin is added to the CSP by `app-proxy`.
+
+#### `AETHERNET_APP_WORDMARK_URL`
+
+Default empty. The wordmark. Its origin is added to the CSP by `app-proxy`.
+
+#### `AETHERNET_APP_FAVICON_URL`
+
+Default empty. The favicon. Its origin is added to the CSP by `app-proxy`.
+
+#### `AETHERNET_APP_THEME_COLOR`
+
+Default empty. The theme colour. Its origin is added to the CSP by `app-proxy`.
+
+#### `AETHERNET_INSTANCE_SETUP_CONFIGURED`
+
+Default `false`. Whether setup is marked complete. The stored `app_public_config` row wins whenever its `setup.configured` is a boolean. This variable supplies the default only while no such row exists, and only on a self-hosted instance. Off a self-hosted instance the state is always true whatever this says.
+
+#### `AETHERNET_AUTO_JOIN_INVITE_CODE`
+
+Default empty. An invite every new account joins. Must be a live invite code.
+
+#### `AETHERNET_VISIONARIES_GUILD_ID`
+
+Default empty. The guild that grants the visionary role. Snowflake.
+
+#### `AETHERNET_VISIONARIES_GUILD_VISIONARY_ROLE_ID`
+
+Default empty. The role granted there. Snowflake.
+
+Completing setup saves that state independently of the environment default. Later branding or legal updates preserve it. Setting `AETHERNET_INSTANCE_SETUP_CONFIGURED` back to `false` does not reopen the wizard or restore the unauthenticated setup access and first-registration admin grant described in [Get started](/operator/get-started/).
+
+## API and worker settings
+
+`AETHERNET_API_WORKER_TASK` is required under `single_task`. The rest are optional.
+
+#### `AETHERNET_API_PORT`
+
+Default `8080`. The API listen port. Compose sets `8080` and the edge proxies to it.
+
+#### `AETHERNET_API_HEADERS_TIMEOUT_MS`
+
+Default `30000`. How long a client may take to send the request line and the headers. Integer 1000 to 3600000, checked at startup. It is clamped down to `AETHERNET_API_REQUEST_TIMEOUT_MS`, so raising it alone does nothing.
+
+#### `AETHERNET_API_REQUEST_TIMEOUT_MS`
+
+Default `120000`. How long a client may take over the whole request. Integer 1000 to 3600000, checked at startup. This is the one to raise for large uploads or high latency links.
+
+#### `AETHERNET_API_WORKER_MODE`
+
+Default `all_lanes`. Which lanes the worker runs. `all_lanes`, `single_lane`, or `single_task`. Anything else fails startup.
+
+#### `AETHERNET_API_WORKER_LANE`
+
+No default. Which lane, under `single_lane`. `realtime`, `unfurl`, `lifecycle`, or `batch`.
+
+#### `AETHERNET_API_WORKER_TASK`
+
+No default. Which task, under `single_task`. Must name a known task.
+
+#### `AETHERNET_API_WORKER_ENABLE_CRON_SCHEDULER`
+
+No default. Whether the cron scheduler runs. Compose sets `true`. Without it no scheduled job runs anywhere.
+
+#### `AETHERNET_API_WORKER_LANE_CONCURRENCY_OVERRIDES`
+
+No default. Per-lane concurrency. JSON object keyed by lane. Each value must be an integer of at least 1 or startup fails. Built-in concurrency is realtime 10, unfurl 20, lifecycle 8, batch 12.
+
+## Media Proxy settings
+
+The Media Proxy takes uploads, transforms images, and serves media back. All are optional.
+
+#### `AETHERNET_MEDIA_PROXY_MODE`
+
+Default `mp`. Which routes are served. `mp`, `static`, or `upload`. Anything else is a startup error. Compose sets `upload`.
+
+#### `AETHERNET_MEDIA_PROXY_HOST`
+
+Default `0.0.0.0`. The bind address. Also settable with `--bind-host`.
+
+#### `AETHERNET_MEDIA_PROXY_PORT`
+
+Default `8080`. The listen port. Also settable with `--port`.
+
+#### `AETHERNET_MEDIA_PROXY_READ_ONLY`
+
+Default `false`. Refuses writes. `--read-only` can force it on.
+
+#### `AETHERNET_MEDIA_PROXY_STORAGE_BACKEND`
+
+Default `local`. Where objects live. `local` or `s3`. Compose sets `s3`.
+
+#### `AETHERNET_MEDIA_PROXY_STORAGE_ROOT`
+
+Default `./media_proxy_storage`. The local storage directory. Used only by the local backend.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_MAX_BODY_BYTES`
+
+Default `524288000`. The upload size cap on both sides. Rust accepts 1 byte to 5 GiB and refuses to start when the value is above `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SPOOL_MAX_TOTAL_BYTES`. The effective cap is the smaller of the token's value and this.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_TOKEN_TTL_SECS`
+
+Default `900`. Relay token lifetime. Read by the API alone.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_ENDPOINT`
+
+Default `http://localhost:8088/media`. The relay URL handed to clients. Node side only. A trailing slash and a trailing `/v1/relay` are stripped.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_KEEP_DIRECT_COUNTRIES`
+
+Default empty. Countries that upload directly to S3. Node side only. Empty means every client uses the relay, which is what keeps the internal S3 address out of browsers.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_S3_TIMEOUT_MS`
+
+Default `900000`. Relay upload timeout. Accepts 1000 to 3600000.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SPOOL_DIR`
+
+Defaults to the system temporary directory. Where relay bodies spool. Must be writable.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SPOOL_CHUNK_BYTES`
+
+Default `1048576`. Spool chunk size. Accepts 64 KiB to 64 MiB.
+
+#### `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SPOOL_MAX_TOTAL_BYTES`
+
+Default `8589934592`. Total spool ceiling. Accepts 0 to 256 GiB, and must be at or above `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_MAX_BODY_BYTES`, which puts the usable floor at 500 MiB by default.
+
+#### `AETHERNET_MEDIA_PROXY_MAX_NATIVE_TRANSFORMS`
+
+Defaults to available parallelism, clamped to 2 to 8. Concurrent image transforms. Accepts 1 to 128.
+
+#### `AETHERNET_MEDIA_PROXY_WORKER_QUEUE_CAPACITY`
+
+Defaults to eight times the transform limit. Transform queue depth. Accepts 1 to 8192.
+
+#### `AETHERNET_MEDIA_PROXY_TRANSFORM_CACHE_BYTES`
+
+Default `268435456`. Transform cache size. Accepts 0 to 4 GiB.
+
+#### `AETHERNET_MEDIA_PROXY_TRANSFORM_CACHE_MAX_ENTRY_BYTES`
+
+Default `67108864`. Largest cacheable result. Accepts 0 to 512 MiB.
+
+#### `AETHERNET_MEDIA_PROXY_TRANSFORM_CACHE_TTL_MS`
+
+Default `120000`. Transform cache lifetime. Accepts 0 to 3600000.
+
+#### `AETHERNET_MEDIA_PROXY_SOCKET_IO_TIMEOUT_MS`
+
+Default `30000`. Socket read and write timeout. Accepts 0 to 300000.
+
+#### `AETHERNET_MEDIA_PROXY_SHUTDOWN_GRACE_MS`
+
+Default `30000`. Milliseconds allowed to finish requests and media transforms after SIGTERM or Ctrl-C. Accepts 0 to 300000. Exceeding the deadline exits the process with an error.
+
+#### `AETHERNET_MEDIA_PROXY_TRANSFORM_TIMEOUT_MS`
+
+Default `15000`. Per-transform timeout. Accepts 1000 to 120000.
+
+#### `AETHERNET_MEDIA_PROXY_MAX_ENCODE_FRAMES`
+
+Defaults to the animated frame default. Animation frame ceiling. Accepts 1 to 100000.
+
+#### `AETHERNET_MEDIA_PROXY_MAX_ENCODE_DURATION_MS`
+
+Default `30000`. Animation duration ceiling. Accepts 100 to 600000.
+
+#### `AETHERNET_NSFW_SERVICE_ENDPOINT`
+
+Default empty. An external NSFW classifier. No such service ships with the stack.
+
+#### `AETHERNET_MEDIA_PROXY_NSFW_THRESHOLD`
+
+Default `0.85`. The media-side NSFW cutoff. Accepts 0.0 to 1.0 and finite. Distinct from the API threshold.
+
+#### `AETHERNET_MEDIA_PROXY_BUNNY_IP_GATE_ENABLED`
+
+Default `false`. Restricts reads to Bunny edge IPs.
+
+#### `AETHERNET_MEDIA_PROXY_BUNNY_IP_GATE_TRUSTED_PROXIES`
+
+Default empty. Extra trusted addresses for that gate. Every entry must parse as an IP or the process exits.
+
+#### `AETHERNET_MEDIA_PROXY_BUNNY_IP_GATE_REFRESH_SECS`
+
+Default `3600`. How often the edge IP list refreshes. Accepts 60 to 86400.
+
+`media-proxy` range-checks these values at startup and then reads them nowhere: `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_BUFFERED_RETRY_BYTES` and `AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_BUFFERED_RETRY_TOTAL_BYTES`. A bad value still fails the boot.
+
+## Gateway settings
+
+The Gateway is the WebSocket service clients hold open for live events. All are optional.
+
+#### `AETHERNET_GATEWAY_PORT`
+
+Default `8771`. The listen port. Compose sets `8080`.
+
+#### `AETHERNET_GATEWAY_ROLE`
+
+Default `all`. Which subsystems this node runs. `websocket`, `sessions`, `presence`, `guilds`, `calls`, `push`, or `all`. An unrecognised value also becomes `all`.
+
+#### `AETHERNET_GATEWAY_MEDIA_PROXY_ENDPOINT`
+
+Default `http://localhost:8088/media`. The public media URL used in payloads. Compose builds it from the public origin.
+
+#### `AETHERNET_GATEWAY_STATIC_CDN_ENDPOINT`
+
+Default `http://localhost:8088`. The public static origin used in payloads. Compose builds it from the public origin.
+
+#### `AETHERNET_GATEWAY_PRESENCE_PUSH_BUFFER_MAX_ENTRIES`
+
+Default `128`. Presence push buffer depth.
+
+#### `AETHERNET_GATEWAY_PRESENCE_PUSH_BUFFER_MAX_BYTES`
+
+Default `1048576`. Presence push buffer size.
+
+#### `AETHERNET_GATEWAY_SHUTDOWN_DRAIN_WAIT_MS`
+
+Default `5000`. How long a drain waits. Milliseconds.
+
+#### `AETHERNET_GATEWAY_HTTP_FAILURE_THRESHOLD`
+
+Default `6`. Failures before the API circuit opens. Integer.
+
+#### `AETHERNET_GATEWAY_HTTP_RECOVERY_TIMEOUT_MS`
+
+Default `15000`. How long the circuit stays open. Milliseconds.
+
+#### `AETHERNET_GATEWAY_CLUSTER_ENABLED`
+
+Default `false`. BEAM clustering. Single-node by default.
+
+#### `AETHERNET_GATEWAY_CLUSTER_DISCOVERY_DNS_NAME`
+
+No default. The DNS name peers are discovered through. Needs clustering on.
+
+#### `AETHERNET_GATEWAY_CLUSTER_DISCOVERY_NODE_BASENAME`
+
+No default. The node basename for discovery. Needs clustering on.
+
+#### `AETHERNET_GATEWAY_CLUSTER_DISCOVERY_POLL_INTERVAL_MS`
+
+Default `5000`. Discovery poll interval. Milliseconds.
+
+#### `AETHERNET_GATEWAY_CLUSTER_STATIC_PEERS`
+
+Default empty. A fixed peer list. Comma separated Erlang node names, capped at 256. An entry that is not a node name fails startup.
+
+#### `AETHERNET_ERLANG_NODE_NAME`
+
+Default `aethernet_gateway@127.0.0.1`. The BEAM node name. Must be resolvable by peers when clustering.
+
+#### `AETHERNET_ERLANG_COOKIE`
+
+No default. The BEAM distribution secret. The Gateway refuses to start without it, and Compose refuses to start the stack when `.env` lacks it. Anyone who reaches the distribution port with the value gets code execution, so keep the port unpublished.
+
+#### `AETHERNET_ERLANG_DIST_PORT`
+
+Default `8081`. The BEAM distribution port. Not published by Compose. Never expose it.
+
+#### `AETHERNET_ERLANG_SCHEDULERS`
+
+Defaults to the container CPU count, clamped to 2 through 16. Normal scheduler count. Positive integer, passed to the BEAM as `+S N:N`. A value that is not a positive integer is ignored and the derivation runs instead.
+
+#### `AETHERNET_ERLANG_DIRTY_CPU_SCHEDULERS`
+
+Defaults to two thirds of the scheduler count, rounded up. Dirty CPU scheduler count. Positive integer, passed as `+SDcpu N:N`. Same fallback rule as `AETHERNET_ERLANG_SCHEDULERS`.
+
+#### `AETHERNET_ERLANG_SCHEDULERS_MIN`
+
+Default `2`. The floor of the scheduler clamp. Compose forwards it to `gateway`.
+
+#### `AETHERNET_ERLANG_SCHEDULERS_MAX`
+
+Default `16`. The ceiling of the scheduler clamp. Compose forwards it to `gateway`, and `.env.example` ships both names commented out.
+
+The Gateway entrypoint derives the scheduler counts before the BEAM starts. It reads the container CPU quota, clamps the result between `AETHERNET_ERLANG_SCHEDULERS_MIN` and `AETHERNET_ERLANG_SCHEDULERS_MAX`, exports the answer as `AETHERNET_ERLANG_SCHEDULERS`, and derives `AETHERNET_ERLANG_DIRTY_CPU_SCHEDULERS` from it. `vm.args.src` then substitutes both into `+S` and `+SDcpu`.
+
+The clamp bounds reach the Gateway from `.env`. To pin the count, set `AETHERNET_ERLANG_SCHEDULERS` on the `gateway` service in `docker-compose.yml`, which skips the clamp.
+
+The Gateway protocol version is `1`. The Gateway answers any other value in `?v=` with 101, then a close frame reading `Invalid API version`. [Gateway overview](/gateway/overview/) has the close code.
+
+The Gateway reads every `AETHERNET_GATEWAY_` name straight from the environment, so all of them work.
+
+## App proxy settings
+
+`app-proxy` serves the web client. All are optional.
+
+#### `AETHERNET_APP_PROXY_HOST`
+
+Default `0.0.0.0`. The bind address. Compose sets it explicitly.
+
+#### `AETHERNET_APP_PROXY_PORT`
+
+Default `8080`. The listen port. Compose sets it explicitly.
+
+#### `AETHERNET_STATIC_DIR`
+
+Default `./static`. Where the client's SPA bundle lives, unrelated to `static-proxy`.
+
+#### `AETHERNET_APP_PROXY_INDEX_UPSTREAM_URL`
+
+No default. An upstream to fetch `index.html` from. Leave unset for the shipped image.
+
+#### `DISCOVERY_UPSTREAM_URL`
+
+Default `http://localhost:8088/api/.well-known/aethernet`. Where the bootstrap discovery document is fetched. Compose sets `http://edge:8088/.well-known/aethernet`. That internal listener supplies the client-IP header the API requires, so leave it pointed at the edge.
+
+#### `DISCOVERY_REFRESH_INTERVAL_MS`
+
+Default `60000`. How often discovery is refetched. Unprefixed name.
+
+#### `PUBLIC_BOOTSTRAP_API_ENDPOINT`
+
+Default `/api`. The API path put in the page bootstrap.
+
+#### `PUBLIC_BOOTSTRAP_API_PUBLIC_ENDPOINT`
+
+No default. The absolute API URL in the bootstrap. Compose builds it from the public origin.
+
+#### `AETHERNET_APP_PROXY_TIME_FREEZE_ENABLED`
+
+Defaults to the inverse of `AETHERNET_SELF_HOSTED`. A frozen asset snapshot. Also compiled out of the self-hosted image.
+
+## Admin settings
+
+`admin` serves the dashboard at `/admin`. All are optional.
+
+#### `AETHERNET_ADMIN_HOST`
+
+Default `0.0.0.0`. The bind address. Compose sets it explicitly.
+
+#### `AETHERNET_ADMIN_PORT`
+
+Default `3020`. The listen port. The image sets 8080 and Compose sets 8080.
+
+#### `AETHERNET_ADMIN_BASE_PATH`
+
+Defaults to empty in Rust, `/admin` in Node. The path the dashboard is mounted under. Normalised to a leading slash with no trailing slash. The service serves at root and re-prefixes every emitted URL with this.
+
+#### `AETHERNET_ADMIN_OAUTH_REDIRECT_URI`
+
+Defaults to the admin endpoint plus `/oauth2_callback`. The OAuth2 redirect. Must equal what the API derives from `AETHERNET_ADMIN_ENDPOINT`. The API does not read this name.
+
+#### `AETHERNET_RELEASE_CHANNEL`
+
+Default `stable`. The reported channel. `RELEASE_CHANNEL` is preferred over it.
+
+#### `AETHERNET_BUILD_VERSION`
+
+Defaults to the crate version. The reported build. `BUILD_VERSION` is preferred over it.
+
+## Content Security Policy
+
+`app-proxy` builds a per-request nonce-based policy for the client HTML and the assets it serves. Each variable appends sources to one directive on top of the built-in ones. All are empty by default, and Compose forwards every one.
+
+Every name below goes in `.env`. `app-proxy` reads its environment at container start, so a change takes effect on `docker compose up -d app-proxy`. A `docker compose restart app-proxy` does not apply it.
+
+`AETHERNET_CSP_EXTRA_DEFAULT_SRC`, `AETHERNET_CSP_EXTRA_CONNECT_SRC`, `AETHERNET_CSP_EXTRA_IMG_SRC`, `AETHERNET_CSP_EXTRA_MEDIA_SRC`, `AETHERNET_CSP_EXTRA_FONT_SRC`, `AETHERNET_CSP_EXTRA_SCRIPT_SRC`, `AETHERNET_CSP_EXTRA_STYLE_SRC`, `AETHERNET_CSP_EXTRA_FRAME_SRC`, `AETHERNET_CSP_EXTRA_WORKER_SRC`, and `AETHERNET_CSP_EXTRA_MANIFEST_SRC` take one or more sources separated by commas, spaces, tabs, or newlines. Blank entries and sources the directive already lists are dropped. `AETHERNET_CSP_REPORT_URI` sets a single `report-uri` value.
+
+`object-src`, `base-uri`, and `frame-ancestors` are fixed and have no override. `app-proxy` reads the discovery document and adds the static CDN endpoint, the media endpoint, and the origins of the configured branding images. A stack on one hostname therefore needs no extra sources. The usual reason to set one is a voice server on another hostname, which needs its WebSocket origin in `AETHERNET_CSP_EXTRA_CONNECT_SRC`. [Voice media does not use the proxy](/operator/reverse-proxy/#voice-media-does-not-use-the-proxy) has that line in place.
+
+### CSP reporting and alerting (production)
+
+Leave `AETHERNET_CSP_REPORT_URI` empty in staging; set it once the final domains
+are known. Point it at a collector you operate (e.g. `https://csp.example.com/report`
+backed by Sentry, Report URI, or a tiny endpoint that logs JSON), then alert on
+signal, not noise: count reports by `document-uri` + `violated-directive` + `blocked-uri`,
+page only on a spike of `script-src`/`connect-src` violations from your own release
+(the usual sign of a bad deploy or an injected script), and file a ticket for
+isolated `img-src`/`media-src` reports (usually user content or an extension).
+Keep one week of raw reports; dashboard the top 10 blocked URIs per release. A front
+proxy must not add a [Content-Security-Policy of its own](/operator/reverse-proxy/#send-no-content-security-policy-of-its-own).
+
+### Pre-launch checklist (production)
+
+Schedule an external penetration test before opening registration: scope the edge,
+`/api`, `/gateway`, `/media`, `/admin`, and LiveKit signalling; provide a seeded
+tenant plus a low-privilege account; require retesting of criticals. Between tests,
+run `pnpm audit --audit-level high` and `cargo deny check advisories bans licenses sources -D warnings`
+(the `Security audit` workflow does both weekly), keep images pinned by digest,
+and confirm secrets come from the managed store above with rotation dates recorded.
+
+## Keys in .env.example that no service reads
+
+Docker Compose or the edge container consumes most of the names below, and each of those reaches a service under a different name. Setting one outside Compose, in Kubernetes or a systemd unit, does nothing.
+
+#### `AETHERNET_DOMAIN`
+
+Interpolated into `AETHERNET_BASE_DOMAIN` and into the derived URL strings.
+
+#### `COMPOSE_FILE`
+
+Read by Docker Compose to select the proxy overlay.
+
+#### `AETHERNET_EDGE_SITE_ADDRESS`
+
+Read by the edge container only, and only in the bundled layout. The overlay overwrites it with `:8080`.
+
+#### `AETHERNET_CADDY_SITE_ADDRESS`
+
+Read by Docker Compose as the default for `AETHERNET_EDGE_SITE_ADDRESS` when that name is unset.
+
+#### `AETHERNET_EDGE_TRUSTED_PROXIES`
+
+Read by the edge container only. It takes effect on `docker compose up -d edge`.
+
+#### `AETHERNET_EDGE_BIND`
+
+Used as the host side of the overlay's port mapping.
+
+#### `AETHERNET_HTTP_PORT` and `AETHERNET_HTTPS_PORT`
+
+Used as the host side of the edge's published ports.
+
+#### `AETHERNET_REGISTRY_OWNER`, `AETHERNET_REGISTRY` and `AETHERNET_IMAGE_TAG`
+
+Image name selection.
+
+#### `POSTGRES_PASSWORD`
+
+Becomes `AETHERNET_POSTGRES_PASSWORD` and the Postgres image's own password.
+
+#### `MEILI_MASTER_KEY`
+
+Becomes `AETHERNET_SEARCH_API_KEY` and the Meilisearch image's own key.
+
+#### `AETHERNET_S3_ACCESS_KEY` and `AETHERNET_S3_SECRET_KEY`
+
+Become `AETHERNET_S3_ACCESS_KEY_ID` and `AETHERNET_S3_SECRET_ACCESS_KEY`, and the `AWS_` pair.
+
+#### `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`
+
+Become `AETHERNET_LIVEKIT_API_KEY` and `AETHERNET_LIVEKIT_API_SECRET`, and LiveKit's own `LIVEKIT_KEYS`.
+
+## Keys Compose does not forward
+
+`.env.example` lists the variables forwarded by `docker-compose.yml`. Add any setting below through a Compose override file that puts it in the relevant service's environment.
+
+#### `AETHERNET_AUTH_BLUESKY_` and the names under it
+
+See [Bluesky connections](#bluesky-connections) for configuration.
+
+#### `AETHERNET_PUSH_APNS_` and `AETHERNET_PUSH_FCM_`
+
+Mobile push cannot be configured at all from the example.
+
+#### `RUST_LOG`, `LOG_LEVEL` and `LOGGER_LEVEL`
+
+The only way to change log verbosity.
+
+#### `AETHERNET_APP_PRODUCT_NAME` and the branding URLs
+
+Branding is otherwise admin-dashboard only.
+
+#### `AETHERNET_INSTANCE_SETUP_CONFIGURED`
+
+Supplies the initial setup state on a self-hosted instance, until the first write of the stored `app_public_config` row takes over.
+
+#### Every `AETHERNET_ABUSE_` auto-banner name, every `AETHERNET_IPINFO_` budget name, and every Media Proxy performance knob
+
+No example coverage at all.
+
+## Runtime settings in the admin dashboard
+
+The admin dashboard at `/admin` stores these in the database. They apply without recreating containers, and a value set here wins over the matching environment variable.
+
+#### Instance Config, Public App Identity
+
+Product name, client-visible brand assets, and the setup state in the instance discovery document.
+
+#### Instance Config, Registration Controls
+
+Registration mode of `open`, `approval`, or `closed`, admin-issued registration URLs, and pending approval requests.
+
+#### Instance Config, Community & Policy
+
+Single-community mode, direct messages and friends, the premium model, and optional embed services.
+
+#### Instance Config, Runtime Integrations
+
+The Klipy GIF key, the YouTube Data API key, the CAPTCHA provider and its keys, email delivery with an SMTP connection test, and Bluesky OAuth.
+
+#### Instance Config, Media Expiry
+
+Size-based attachment lifetimes. The built-in default is on.
+
+#### Instance Config, Gateway Rollout Configuration
+
+Session and guild rollout percentages, RPC timeouts, and Gateway concurrency.
+
+#### Instance Config, Single Sign-On (SSO)
+
+OIDC-style SSO for the client and admin apps, and whether SSO is enforced.
+
+#### Limit Config
+
+The [instance limits](/http-api/instance/#limit-configuration-object) published to clients.
+
+#### Voice Regions and Voice Servers
+
+The voice regions offered and the servers behind them.
+
+#### Admin API Keys
+
+Credentials for the [Admin API](/admin-api/).
+
+Changes propagate without a restart. A process that cannot apply an update logs the error and keeps its previous valid settings.
+
+These settings exist only in the dashboard: attachment decay, which defaults to on, and the inactivity deletion threshold, which defaults to 365 days.
+
+## Services
+
+The stack runs its containers on one Docker bridge network, which is private to the stack.
+
+| Service | Image | What it does |
+| --- | --- | --- |
+| edge | caddy:2.10-alpine | TLS and path routing, the only HTTP entry point |
+| app-proxy | aethernet-app-proxy-self-hosted | Serves the web client and builds its CSP header |
+| static-proxy | aethernet-static | Serves the static asset bundle |
+| api | aethernet-api | The HTTP API |
+| worker | aethernet-api | Background lanes and the cron scheduler |
+| gateway | aethernet-gateway | The Gateway WebSocket |
+| media-proxy | aethernet-media-proxy | Uploads, transforms, and media delivery |
+| admin | aethernet-admin | The admin dashboard |
+| snowflakes, snowflakes-shard | aethernet-snowflakes | Identifier allocation |
+| users, users-shard | aethernet-users | User reads and writes |
+| messages, messages-shard | aethernet-messages | Message reads and writes |
+| gifs, gifs-shard | aethernet-gifs | GIF provider access |
+| unfurl, unfurl-shard | aethernet-unfurl | Link unfurling |
+| postgres | postgres:16-alpine | The database |
+| valkey | valkey/valkey:8.1-alpine | The key-value store and pub/sub bus, and the deletion queues |
+| nats | nats:2.14-alpine | Core messaging, and the JetStream streams holding queued background jobs |
+| meilisearch | getmeili/meilisearch:v1.12 | The search index |
+| seaweedfs | chrislusf/seaweedfs:4.34 | S3-compatible object storage |
+| seaweedfs-init | chrislusf/seaweedfs:4.34 | Creates the buckets and the S3 identity, then exits |
+| livekit | livekit/livekit-server:v1.12.0 | Voice and video |
+
+The edge and LiveKit are the only services that publish ports. The edge publishes 80/tcp, 443/tcp, 443/udp, or one plain-HTTP port under the overlay. LiveKit publishes 7881/tcp and 7882/udp. Everything else is reachable only over the bridge network.
+
+`api` is the one service an operator configures directly, through the shared environment block. `worker`, `gateway`, `app-proxy`, and `media-proxy` are touched rarely, `worker` for lane concurrency, `app-proxy` for CSP extras, and `media-proxy` for transform limits. The edge takes only the `AETHERNET_EDGE_` variables, `postgres` only the password, `meilisearch` only the master key, `valkey` only the `AETHERNET_VALKEY_` tuning values, and `livekit` only the key pair and the port variables. `static-proxy` reads no environment variables, and the remaining services need none.
+
+The internal services each run a router, which takes requests and holds no state, and one shard, which holds the caches and the database connections. The shipped stack fixes `AETHERNET_SVC_SHARD_COUNT` at `1`.
+
+## Resources
+
+Every service has a memory limit and four also have a memory reservation, all under `deploy.resources`. Compose reads `gb` as 1024 MiB and `mb` as 1 MiB, so `5gb` is 5368709120 bytes. Plain `docker compose up` applies both keys on a single host, with no Swarm and no `--compatibility` flag. The engine rejects any limit below `6mb`, and rejects a limit lower than the same service's reservation with `Minimum memory limit can not be less than memory reservation limit`.
+
+A limit is a ceiling. The limits below sum to 16.75 GiB and the stack does not need a host that large, because a container costs what it touches.
+
+`deploy.resources.reservations.memory` becomes the container's cgroup v2 `memory.low`, which biases kernel reclaim towards other containers under host pressure. It reserves nothing on its own.
+
+All are optional.
+
+#### `AETHERNET_CADDY_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `edge`.
+
+#### `AETHERNET_POSTGRES_MEMORY_LIMIT`
+
+Default `5gb`. The ceiling for `postgres`. Must be at or above `AETHERNET_POSTGRES_MEMORY_RESERVATION` or the container fails to create. The 256mb `shm_size` is charged against it.
+
+#### `AETHERNET_VALKEY_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `valkey`. Must stay above `AETHERNET_VALKEY_MAXMEMORY`, which bounds the stored dataset alone.
+
+#### `AETHERNET_NATS_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `nats`. Covers JetStream file store metadata as well as the core server.
+
+#### `AETHERNET_MEILISEARCH_MEMORY_LIMIT`
+
+Default `768mb`. The ceiling for `meilisearch`. Must stay well above `AETHERNET_MEILISEARCH_MAX_INDEXING_MEMORY`, which bounds the indexer alone.
+
+#### `AETHERNET_MEILISEARCH_MAX_INDEXING_MEMORY`
+
+Default `384mb`. Becomes `MEILI_MAX_INDEXING_MEMORY`. The memory the indexer may use for one batch. Lower it whenever you lower `AETHERNET_MEILISEARCH_MEMORY_LIMIT`.
+
+#### `AETHERNET_SEAWEEDFS_MEMORY_LIMIT`
+
+Default `2gb`. The ceiling for `seaweedfs`. One process runs the master, the volume server and the S3 gateway. The peak is the parts of one upload in flight at once, which the client uploads in parallel: a 500 MB attachment is 20 parts of 25 MB.
+
+#### `AETHERNET_SEAWEEDFS_GOMEMLIMIT`
+
+Default `1536MiB`. The heap ceiling the Go runtime collects against. Go cannot see the container limit, so without this value an upload burst grows the heap past `AETHERNET_SEAWEEDFS_MEMORY_LIMIT` and the kernel OOM-kills the container mid-upload with exit 137. Raising `AETHERNET_SEAWEEDFS_MEMORY_LIMIT` on its own does not fix that, because the runtime grows to fill whatever it is given. Keep this near three quarters of the container limit and move the two together.
+
+#### `AETHERNET_SEAWEEDFS_INIT_MEMORY_LIMIT`
+
+Default `128mb`. The ceiling for `seaweedfs-init`. A one-shot container that exits, so it never overlaps steady state.
+
+#### `AETHERNET_LIVEKIT_MEMORY_LIMIT`
+
+Default `512mb`. The ceiling for `livekit`. Grows with the number of concurrent voice publishers.
+
+#### `AETHERNET_API_MEMORY_LIMIT`
+
+Default `2560mb`. The ceiling for `api`. Node derives its heap ceiling from this at about half, and the derivation stops falling at or below `512mb`.
+
+#### `AETHERNET_WORKER_MEMORY_LIMIT`
+
+Default `2560mb`. The ceiling for `worker`. Same Node derivation as `api`, applied to every background lane at once.
+
+#### `AETHERNET_GATEWAY_MEMORY_LIMIT`
+
+Default `1gb`. The ceiling for `gateway`. The BEAM has no heap ceiling of its own, so this limit is the only bound on the Gateway.
+
+#### `AETHERNET_MEDIA_PROXY_MEMORY_LIMIT`
+
+Default `512mb`. The ceiling for `media-proxy`. Image and video transforms decode into this ceiling, so an oversize upload is where it binds.
+
+#### `AETHERNET_STATIC_PROXY_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `static-proxy`. The service reads no environment variables and serves files only.
+
+#### `AETHERNET_APP_PROXY_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `app-proxy`. It holds the discovery cache and reads no database.
+
+#### `AETHERNET_SNOWFLAKES_MEMORY_LIMIT`
+
+Default `128mb`. The ceiling for `snowflakes`. A router holds no shard state.
+
+#### `AETHERNET_SNOWFLAKES_SHARD_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `snowflakes-shard`. Holds the identifier buffer sized by `AETHERNET_SNOWFLAKE_SERVICE_BATCH_SIZE`.
+
+#### `AETHERNET_USERS_MEMORY_LIMIT`
+
+Default `128mb`. The ceiling for `users`. A router holds no shard state.
+
+#### `AETHERNET_USERS_SHARD_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `users-shard`. Holds the read cache bounded by `AETHERNET_SVC_CACHE_MAX_ENTRIES`, which defaults to 100000 entries.
+
+#### `AETHERNET_GIFS_MEMORY_LIMIT`
+
+Default `128mb`. The ceiling for `gifs`. A router holds no shard state.
+
+#### `AETHERNET_GIFS_SHARD_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `gifs-shard`. Lower than the 536870912 byte default of `AETHERNET_GIFS_SHARD_CACHE_MAX_BYTES`.
+
+#### `AETHERNET_MESSAGES_MEMORY_LIMIT`
+
+Default `128mb`. The ceiling for `messages`. A router holds no shard state.
+
+#### `AETHERNET_MESSAGES_SHARD_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `messages-shard`. The shard has a Postgres pool of 20 connections alongside the read cache.
+
+#### `AETHERNET_UNFURL_MEMORY_LIMIT`
+
+Default `128mb`. The ceiling for `unfurl`. A router holds no shard state.
+
+#### `AETHERNET_UNFURL_SHARD_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `unfurl-shard`. Fetches remote pages, so a slow upstream holds bytes for the length of the fetch.
+
+#### `AETHERNET_ADMIN_MEMORY_LIMIT`
+
+Default `256mb`. The ceiling for `admin`. Serves the dashboard and proxies no media.
+
+A reservation goes to the services whose loss takes the instance down, so the kernel reclaims from everything else first. All are optional.
+
+#### `AETHERNET_POSTGRES_MEMORY_RESERVATION`
+
+Default `3gb`. The reclaim floor for `postgres`. Must be at or below `AETHERNET_POSTGRES_MEMORY_LIMIT`. Lowering the limit alone fails container creation.
+
+#### `AETHERNET_API_MEMORY_RESERVATION`
+
+Default `1gb`. The reclaim floor for `api`. Must be at or below `AETHERNET_API_MEMORY_LIMIT`.
+
+#### `AETHERNET_WORKER_MEMORY_RESERVATION`
+
+Default `1gb`. The reclaim floor for `worker`. Must be at or below `AETHERNET_WORKER_MEMORY_LIMIT`.
+
+#### `AETHERNET_GATEWAY_MEMORY_RESERVATION`
+
+Default `384mb`. The reclaim floor for `gateway`. Must be at or below `AETHERNET_GATEWAY_MEMORY_LIMIT`.
+
+Node sizes its own old-space heap at roughly half the container limit, with a floor near 259 MB. A container limit of `2560mb` gives a 1328 MB heap ceiling, `1280mb` gives 664 MB, `768mb` gives 396 MB, and every limit at or under `512mb` gives the same 259 MB. Pin the value only to move it away from that derivation. All are optional.
+
+#### `AETHERNET_API_NODE_HEAP_MB`
+
+No default. The V8 old-space ceiling for `api`, in MB. Appended to `NODE_OPTIONS` as `--max-old-space-size` only when non-empty. Keep it below `AETHERNET_API_MEMORY_LIMIT`.
+
+#### `AETHERNET_WORKER_NODE_HEAP_MB`
+
+No default. The V8 old-space ceiling for `worker`, in MB. Same rule against `AETHERNET_WORKER_MEMORY_LIMIT`.
+
+The names on the Postgres command line tune the bundled server. Keep them consistent with `AETHERNET_POSTGRES_MEMORY_LIMIT`. All are optional.
+
+#### `AETHERNET_POSTGRES_SERVER_MAX_CONNECTIONS`
+
+Default `150`. The server-wide connection ceiling. The shipped pools total 90, from 25 each for `api` and `worker` and 20 each for `messages-shard` and `users-shard`. A value under about 95 exhausts the server before the pools fill, and the connections it turns away are refused with `too many clients already`.
+
+#### `AETHERNET_POSTGRES_SHARED_BUFFERS`
+
+Default `512MB`. The shared buffer pool. Allocated at server start, so it is charged to the container whether or not it is used.
+
+#### `AETHERNET_POSTGRES_EFFECTIVE_CACHE_SIZE`
+
+Default `2GB`. The planner's assumption about disk cache. Allocates nothing. Lowering it makes the planner prefer sequential scans and frees no memory.
+
+#### `AETHERNET_POSTGRES_WORK_MEM`
+
+Default `8MB`. The per-operation sort and hash budget. Charged per sort or hash node, so one complex query can spend several multiples of it.
+
+#### `AETHERNET_POSTGRES_MAINTENANCE_WORK_MEM`
+
+Default `256MB`. The budget for one VACUUM, CREATE INDEX, or ALTER TABLE. One such operation at a time normally holds it.
+
+#### `AETHERNET_POSTGRES_AUTOVACUUM_WORK_MEM`
+
+Default `128MB`. The budget for each autovacuum worker. Postgres runs three workers by default, so budget three times this value.
+
+The remaining Postgres settings are fixed on the command line, with no variable of their own: `min_wal_size=512MB`, `max_wal_size=2GB`, `wal_buffers=16MB`, and `shm_size: 256mb` on the service itself.
+
+The bundled Valkey uses persistent storage. These settings control its memory limit and behaviour when full.
+
+#### `AETHERNET_VALKEY_MAXMEMORY`
+
+Default `192mb`. The dataset ceiling. Bounds stored keys only. Client buffers, replication buffers and allocator overhead sit outside it and inside `AETHERNET_VALKEY_MEMORY_LIMIT`.
+
+#### `AETHERNET_VALKEY_MAXMEMORY_POLICY`
+
+Default `noeviction`. An over-limit write returns an OOM error. Keep this policy to protect deletion queues and other shared state. See [Volumes and buckets](#volumes-and-buckets) for recovery implications.
+
+No service sets a CPU limit, a CPU reservation or `cpu_shares`, so every container sees the host's full CPU count. Bound the Gateway's scheduler count with `AETHERNET_ERLANG_SCHEDULERS_MIN` and `AETHERNET_ERLANG_SCHEDULERS_MAX`, or pin it with `AETHERNET_ERLANG_SCHEDULERS` and `AETHERNET_ERLANG_DIRTY_CPU_SCHEDULERS` from [Gateway settings](#gateway-settings).
+
+On a host smaller than the 16 GB the defaults assume, lower the large ceilings and the Postgres tuning together. The block below is the 8 GB profile.
+
+```bash
+AETHERNET_POSTGRES_MEMORY_LIMIT=2560mb
+AETHERNET_POSTGRES_MEMORY_RESERVATION=1gb
+AETHERNET_POSTGRES_SHARED_BUFFERS=384MB
+AETHERNET_POSTGRES_EFFECTIVE_CACHE_SIZE=1536MB
+AETHERNET_API_MEMORY_LIMIT=1280mb
+AETHERNET_API_MEMORY_RESERVATION=768mb
+AETHERNET_WORKER_MEMORY_LIMIT=1280mb
+AETHERNET_WORKER_MEMORY_RESERVATION=768mb
+AETHERNET_GATEWAY_MEMORY_LIMIT=512mb
+AETHERNET_GATEWAY_MEMORY_RESERVATION=256mb
+AETHERNET_MEILISEARCH_MEMORY_LIMIT=512mb
+AETHERNET_MEILISEARCH_MAX_INDEXING_MEMORY=256mb
+AETHERNET_SEAWEEDFS_MEMORY_LIMIT=1gb
+AETHERNET_SEAWEEDFS_GOMEMLIMIT=768MiB
+AETHERNET_GIFS_SHARD_CACHE_MAX_BYTES=134217728
+```
+
+At 8 GB the api and worker heap ceilings fall to 664 MB each and Postgres caches less of the working set, which shows up as slower search and slower history scrolling under load. Nothing is turned off, though the largest attachments need the 16 GB SeaweedFS ceiling to upload every part at once.
+
+The 4 GB profile trades more.
+
+```bash
+AETHERNET_POSTGRES_MEMORY_LIMIT=1280mb
+AETHERNET_POSTGRES_MEMORY_RESERVATION=512mb
+AETHERNET_POSTGRES_SHARED_BUFFERS=192MB
+AETHERNET_POSTGRES_EFFECTIVE_CACHE_SIZE=768MB
+AETHERNET_POSTGRES_WORK_MEM=4MB
+AETHERNET_POSTGRES_SERVER_MAX_CONNECTIONS=120
+AETHERNET_API_MEMORY_LIMIT=768mb
+AETHERNET_API_MEMORY_RESERVATION=512mb
+AETHERNET_WORKER_MEMORY_LIMIT=640mb
+AETHERNET_WORKER_MEMORY_RESERVATION=384mb
+AETHERNET_GATEWAY_MEMORY_LIMIT=384mb
+AETHERNET_GATEWAY_MEMORY_RESERVATION=192mb
+AETHERNET_MEILISEARCH_MEMORY_LIMIT=384mb
+AETHERNET_MEILISEARCH_MAX_INDEXING_MEMORY=128mb
+AETHERNET_MEDIA_PROXY_MEMORY_LIMIT=320mb
+AETHERNET_SEAWEEDFS_MEMORY_LIMIT=320mb
+AETHERNET_SEAWEEDFS_GOMEMLIMIT=240MiB
+AETHERNET_LIVEKIT_MEMORY_LIMIT=320mb
+AETHERNET_VALKEY_MEMORY_LIMIT=192mb
+AETHERNET_VALKEY_MAXMEMORY=128mb
+AETHERNET_GIFS_SHARD_CACHE_MAX_BYTES=67108864
+```
+
+At 4 GB the api heap ceiling is 396 MB and the worker heap ceiling is 332 MB. That covers chat. A large attachment and a search reindex at the same time exceed it. Media transforms above roughly 20 MB start failing in `media-proxy`, Meilisearch indexes a backlog more slowly, and a busy voice room is the first thing to drop. Keep `AETHERNET_POSTGRES_SERVER_MAX_CONNECTIONS` at or above 110.
+
+## Routing
+
+The edge is the only HTTP entry point, and every route is served from the one public hostname. It rewrites each path before handing it to an upstream. [What the single port routes](/operator/reverse-proxy/#what-the-single-port-routes) has the path table, and [What every proxy must do](/operator/reverse-proxy/#what-every-proxy-must-do) has the requirements for anything in front of the edge.
+
+None of the variables on this page change that routing. The `Caddyfile` is a bind mount, so an edit to it takes `docker compose restart edge`.
+
+CORS origins are exactly the app and marketing endpoints. Serving the client from a hostname other than `AETHERNET_DOMAIN` requires overriding `AETHERNET_APP_ENDPOINT`.
+
+## Volumes and buckets
+
+| Volume | Holds | Back up |
+| --- | --- | --- |
+| postgres-data | Every account, message, and configuration row | Yes |
+| seaweedfs-data | Every uploaded file | Yes |
+| valkey-data | Deletion queues and shared cache | Yes |
+| nats-data | Pending and failed background jobs | Yes |
+| edge-data | Issued TLS certificates | Optional, a loss only costs a re-issue |
+| edge-config | The edge's own state | No |
+| meilisearch-data | The search index, rebuildable | No |
+
+Losing `valkey-data` can delay scheduled account and bulk-message deletions while their queues are rebuilt. Pending asset deletions and CDN purges can be lost, so do not treat this volume as disposable cache.
+
+`nats-data` retains pending jobs in `JOBS` for up to 7 days and failed jobs in `JOBS_DLQ` for up to 30 days. A full jobs stream rejects new work. A full dead-letter stream drops its oldest entries, so investigate failures promptly. If dead-letter storage is unavailable, failed jobs remain in `JOBS` only until they expire. Losing this volume loses queued work, which is not automatically recovered from the database.
+
+Startup refuses incompatible queue limits and never rewrites an existing stream. Stop publishers and workers before migrating an incompatible stream.
+
+Volume names are prefixed with the Compose project name, so `postgres-data` is `aethernet_postgres-data` on the host.
+
+`seaweedfs-init` creates these buckets and exits.
+
+| Bucket | Holds |
+| --- | --- |
+| aethernet | Avatars, guild and entity assets, themes, entrance sounds, memes, and processed attachments |
+| aethernet-uploads | Raw attachment uploads, before processing |
+| aethernet-downloads | Desktop client build artefacts |
+| aethernet-reports | Abuse report evidence, and NCMEC payloads where that integration is on |
+| aethernet-harvests | User and guild data archives |
+
+`AETHERNET_S3_BUCKET_STATIC` names an optional bucket. The shipped stack does not use or create it.

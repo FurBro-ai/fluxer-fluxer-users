@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-labelledby="title">
+  <title id="title">AETHERNET Member</title>
+  <defs>
+    <linearGradient id="aethernet-gradient" x1="4" y1="36" x2="36" y2="4" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5B5FF0"/>
+      <stop offset="0.5" stop-color="#24D1C4"/>
+      <stop offset="1" stop-color="#B5FF6D"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#aethernet-gradient)" d="M20 2 35.6 11v18L20 38 4.4 29V11L20 2Z"/>
+  <path fill="#101225" fill-rule="evenodd" d="m20 8.4 9.3 21.2h-5l-1.8-4.4h-8l-1.8 4.4h-5L17 8.4h3Zm-4 12.8h5l-2.5-6-2.5 6Z" clip-rule="evenodd"/>
+</svg>

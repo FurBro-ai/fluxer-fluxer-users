@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import {DELETED_USER_ID} from '@aethernet/constants/src/UserConstants';
+import type {WebhookResponse, WebhookTokenResponse} from '@aethernet/schema/src/domains/webhook/WebhookSchemas';
+import {createUserID} from '../BrandedTypes';
+import type {UserCacheService} from '../infrastructure/UserCacheService';
+import type {RequestCache} from '../middleware/RequestCacheMiddleware';
+import type {Webhook} from '../models/Webhook';
+import {getCachedUserPartialResponse} from '../user/UserCacheHelpers';
+
+export function mapWebhookToTokenResponse(webhook: Webhook): WebhookTokenResponse {
+	return {
+		id: webhook.id.toString(),
+		guild_id: webhook.guildId?.toString() || '',
+		channel_id: webhook.channelId?.toString() || '',
+		name: webhook.name || '',
+		avatar: webhook.avatarHash,
+		token: webhook.token,
+	};
+}
+
+export async function mapWebhookToResponseWithCache({
+	webhook,
+	userCacheService,
+	requestCache,
+}: {
+	webhook: Webhook;
+	userCacheService: UserCacheService;
+	requestCache: RequestCache;
+}): Promise<WebhookResponse> {
+	const creatorPartial = await getCachedUserPartialResponse({
+		userId: webhook.creatorId ?? createUserID(DELETED_USER_ID),
+		userCacheService,
+		requestCache,
+	});
+	return {
+		...mapWebhookToTokenResponse(webhook),
+		user: creatorPartial,
+	};
+}
+
+export async function mapWebhooksToResponse({
+	webhooks,
+	userCacheService,
+	requestCache,
+}: {
+	webhooks: Array<Webhook>;
+	userCacheService: UserCacheService;
+	requestCache: RequestCache;
+}): Promise<Array<WebhookResponse>> {
+	return await Promise.all(
+		webhooks.map((webhook) => mapWebhookToResponseWithCache({webhook, userCacheService, requestCache})),
+	);
+}

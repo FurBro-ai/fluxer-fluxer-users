@@ -1,0 +1,22 @@
+{
+	"name": "@aethernet/instance_bootstrap",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./src/*": "./src/*",
+		"./*": "./*"
+	},
+	"scripts": {
+		"typecheck": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@aethernet/constants": "workspace:*",
+		"@aethernet/limits": "workspace:*",
+		"@aethernet/schema": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@typescript/native-preview": "catalog:"
+	}
+}

@@ -1,0 +1,25 @@
+% SPDX-License-Identifier: AGPL-3.0-or-later
+{application, aethernet_gateway, [
+    {description, "Aethernet Gateway"},
+    {vsn, "0.0.0"},
+    {registered, []},
+    {mod, {aethernet_gateway_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        public_key,
+        ssl,
+        inets,
+        jose,
+        ranch,
+        cowboy,
+        ezstd,
+        base64url,
+        enats
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["AGPL-3.0-or-later"]},
+    {links, []}
+]}.

@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Dispatch Dart SDK Regeneration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - aethernet_api/src/api/openapi/openapi.json
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: Dispatch regeneration
+    if: github.repository == 'aethernetapp/aethernet'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create token
+        id: create-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.AETHERNET_CI_APP_ID }}
+          private-key: ${{ secrets.AETHERNET_CI_APP_KEY }}
+          owner: aethernetapp
+          repositories: dart_sdk
+          permission-contents: write
+
+      - name: Dispatch Dart SDK regeneration
+        env:
+          GH_TOKEN: ${{ steps.create-token.outputs.token }}
+        run: |
+          gh api --method POST repos/aethernetapp/dart_sdk/dispatches \
+            --field event_type=aethernet-openapi-updated

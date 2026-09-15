@@ -1,0 +1,29 @@
+{
+	"name": "@aethernet/errors",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./*"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"typecheck": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@aethernet/config": "workspace:*",
+		"@aethernet/constants": "workspace:*",
+		"@aethernet/hono_types": "workspace:*",
+		"@aethernet/i18n": "workspace:*",
+		"@aethernet/logger": "workspace:*",
+		"@aethernet/schema": "workspace:*",
+		"hono": "catalog:"
+	},
+	"devDependencies": {
+		"@messageformat/parser": "catalog:",
+		"@types/node": "catalog:",
+		"@typescript/native-preview": "catalog:",
+		"vitest": "catalog:"
+	}
+}

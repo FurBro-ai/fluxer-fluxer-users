@@ -1,0 +1,440 @@
+[
+	{
+		"url": "https://aethernet.example",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "https://aethernet.example"
+	},
+	{
+		"url": "https://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "https://aethernet.example/media"
+	},
+	{
+		"url": "https://aethernet.example/admin",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "https://aethernet.example/admin"
+	},
+	{
+		"url": "https://aethernet.example/admin/oauth2_callback",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "https://aethernet.example/admin/oauth2_callback"
+	},
+	{
+		"url": "wss://aethernet.example/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "wss://aethernet.example/gateway"
+	},
+	{
+		"url": "http://aethernet.example",
+		"base_domain": "aethernet.example",
+		"public_port": 80,
+		"normalized": "http://aethernet.example"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 80,
+		"normalized": "http://aethernet.example/media"
+	},
+	{
+		"url": "ws://aethernet.example/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 80,
+		"normalized": "ws://aethernet.example/gateway"
+	},
+	{
+		"url": "http://aethernet.example",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080"
+	},
+	{
+		"url": "http://aethernet.example/",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/media"
+	},
+	{
+		"url": "http://aethernet.example/api",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/api"
+	},
+	{
+		"url": "http://aethernet.example/admin",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/admin"
+	},
+	{
+		"url": "http://aethernet.example/admin/oauth2_callback",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/admin/oauth2_callback"
+	},
+	{
+		"url": "ws://aethernet.example/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "ws://aethernet.example:19080/gateway"
+	},
+	{
+		"url": "https://aethernet.example/admin/oauth2_callback",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https://aethernet.example:8443/admin/oauth2_callback"
+	},
+	{
+		"url": "wss://aethernet.example/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "wss://aethernet.example:8443/gateway"
+	},
+	{
+		"url": "https://aethernet.example",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https://aethernet.example:8443"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "http://aethernet.example:443/media"
+	},
+	{
+		"url": "https://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 80,
+		"normalized": "https://aethernet.example:80/media"
+	},
+	{
+		"url": "ws://aethernet.example/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 443,
+		"normalized": "ws://aethernet.example:443/gateway"
+	},
+	{
+		"url": "wss://aethernet.example/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 80,
+		"normalized": "wss://aethernet.example:80/gateway"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": null,
+		"normalized": "http://aethernet.example/media"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 0,
+		"normalized": "http://aethernet.example/media"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example/media"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "   ",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example/media"
+	},
+	{
+		"url": "http://aethernet.example:19080/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/media"
+	},
+	{
+		"url": "http://aethernet.example:8080/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:8080/media"
+	},
+	{
+		"url": "https://aethernet.example:443/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "https://aethernet.example:443/media"
+	},
+	{
+		"url": "http://aethernet.example:80/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:80/media"
+	},
+	{
+		"url": "https://aethernet.example:8443/admin/oauth2_callback",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https://aethernet.example:8443/admin/oauth2_callback"
+	},
+	{
+		"url": "ws://aethernet.example:19080/gateway",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "ws://aethernet.example:19080/gateway"
+	},
+	{
+		"url": "http://aethernet.example:8080?a=1",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:8080?a=1"
+	},
+	{
+		"url": "https://cdn.example.net/assets",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "https://cdn.example.net/assets"
+	},
+	{
+		"url": "https://media.example.net",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "https://media.example.net"
+	},
+	{
+		"url": "https://sub.aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "https://sub.aethernet.example/media"
+	},
+	{
+		"url": "https://aethernet.example/media",
+		"base_domain": "example",
+		"public_port": 19080,
+		"normalized": "https://aethernet.example/media"
+	},
+	{
+		"url": "https://aethernet.example.evil.net/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "https://aethernet.example.evil.net/media"
+	},
+	{
+		"url": "http://api:8080",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://api:8080"
+	},
+	{
+		"url": "http://media-proxy:8080",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://media-proxy:8080"
+	},
+	{
+		"url": "http://AETHERNET.example/Media",
+		"base_domain": "Aethernet.Example",
+		"public_port": 19080,
+		"normalized": "http://AETHERNET.example:19080/Media"
+	},
+	{
+		"url": "HTTPS://aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "HTTPS://aethernet.example:8443/media"
+	},
+	{
+		"url": "http://aethernet.example./media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example.:19080/media"
+	},
+	{
+		"url": "http://aethernet.example/media",
+		"base_domain": "aethernet.example.",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/media"
+	},
+	{
+		"url": "http://aethernet.example./media",
+		"base_domain": "aethernet.example.",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example.:19080/media"
+	},
+	{
+		"url": "http://aethernet.example?a=1",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080?a=1"
+	},
+	{
+		"url": "http://aethernet.example#top",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080#top"
+	},
+	{
+		"url": "http://aethernet.example/media/x.png?v=1#frag",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/media/x.png?v=1#frag"
+	},
+	{
+		"url": "http://aethernet.example/media/",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/media/"
+	},
+	{
+		"url": "http://aethernet.example/a%20b",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080/a%20b"
+	},
+	{
+		"url": "http://aethernet.example#/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080#/media"
+	},
+	{
+		"url": "http://user:pass@aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://user:pass@aethernet.example:19080/media"
+	},
+	{
+		"url": "http://user:pass@aethernet.example:19080/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://user:pass@aethernet.example:19080/media"
+	},
+	{
+		"url": "http://user:p@ss@aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://user:p@ss@aethernet.example:19080/media"
+	},
+	{
+		"url": "http://[::1]/media",
+		"base_domain": "[::1]",
+		"public_port": 19080,
+		"normalized": "http://[::1]:19080/media"
+	},
+	{
+		"url": "http://[::1]:8080/media",
+		"base_domain": "[::1]",
+		"public_port": 19080,
+		"normalized": "http://[::1]:8080/media"
+	},
+	{
+		"url": "http://127.0.0.1/media",
+		"base_domain": "127.0.0.1",
+		"public_port": 19080,
+		"normalized": "http://127.0.0.1:19080/media"
+	},
+	{
+		"url": "http://[2001:db8::1]/media",
+		"base_domain": "[2001:db8::1]",
+		"public_port": 19080,
+		"normalized": "http://[2001:db8::1]:19080/media"
+	},
+	{
+		"url": "http://[2001:DB8::1]/media",
+		"base_domain": "[2001:db8::1]",
+		"public_port": 19080,
+		"normalized": "http://[2001:DB8::1]:19080/media"
+	},
+	{
+		"url": "",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": ""
+	},
+	{
+		"url": "/api",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "/api"
+	},
+	{
+		"url": "aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "aethernet.example/media"
+	},
+	{
+		"url": "not a url",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "not a url"
+	},
+	{
+		"url": "://x",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "://x"
+	},
+	{
+		"url": "file:///x",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "file:///x"
+	},
+	{
+		"url": "mailto:a@aethernet.example",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "mailto:a@aethernet.example"
+	},
+	{
+		"url": "http://aethernet.example\\evil",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "http://aethernet.example:19080\\evil"
+	},
+	{
+		"url": "https://aethernet.example:/media",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https://aethernet.example:/media"
+	},
+	{
+		"url": "//aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 19080,
+		"normalized": "//aethernet.example/media"
+	},
+	{
+		"url": "https:aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https:aethernet.example/media"
+	},
+	{
+		"url": "https:/aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https:/aethernet.example/media"
+	},
+	{
+		"url": "https:////aethernet.example/media",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "https:////aethernet.example/media"
+	},
+	{
+		"url": "android:apk-key-hash:9NrCFDLVR8_ObZC-EWzaRA",
+		"base_domain": "aethernet.example",
+		"public_port": 8443,
+		"normalized": "android:apk-key-hash:9NrCFDLVR8_ObZC-EWzaRA"
+	}
+]

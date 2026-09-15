@@ -1,0 +1,400 @@
+name: aethernet-dev
+
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    init: true
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      npm_config_store_dir: /home/vscode/.local/share/pnpm/store
+      AETHERNET_PUBLIC_PORT: "${AETHERNET_DEV_PROXY_PORT:-8088}"
+      AETHERNET_PUBLIC_URL: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}"
+      AETHERNET_API_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/api"
+      AETHERNET_API_CLIENT_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/api"
+      AETHERNET_APP_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}"
+      AETHERNET_GATEWAY_ENDPOINT: "ws://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/gateway"
+      AETHERNET_MEDIA_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/media"
+      AETHERNET_STATIC_CDN_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}"
+      AETHERNET_ADMIN_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/admin"
+      AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/media"
+      AETHERNET_S3_PUBLIC_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}"
+      AETHERNET_LIVEKIT_URL: "ws://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/livekit"
+      AETHERNET_LIVEKIT_INTERNAL_URL: "http://livekit:7880"
+      AETHERNET_LIVEKIT_WEBHOOK_URL: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/api/webhooks/livekit"
+      AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/media"
+      AETHERNET_GATEWAY_MEDIA_PROXY_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/media"
+      AETHERNET_GATEWAY_STATIC_CDN_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}"
+      AETHERNET_ADMIN_OAUTH_REDIRECT_URI: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/admin/oauth2_callback"
+      AETHERNET_PASSKEY_ADDITIONAL_ALLOWED_ORIGINS: "http://localhost,http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}"
+      PUBLIC_BOOTSTRAP_API_PUBLIC_ENDPOINT: "http://localhost:${AETHERNET_DEV_PROXY_PORT:-8088}/api"
+    volumes:
+      - ..:/workspaces/aethernet:cached
+      - type: volume
+        source: root-node-modules
+        target: /workspaces/aethernet/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-node-modules
+        target: /workspaces/aethernet/aethernet_api/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-app-node-modules
+        target: /workspaces/aethernet/aethernet_app/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-desktop-node-modules
+        target: /workspaces/aethernet/aethernet_desktop/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-admin-node-modules
+        target: /workspaces/aethernet/aethernet_admin/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-config-node-modules
+        target: /workspaces/aethernet/packages/config/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-constants-node-modules
+        target: /workspaces/aethernet/packages/constants/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-date-utils-node-modules
+        target: /workspaces/aethernet/packages/date_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-errors-node-modules
+        target: /workspaces/aethernet/packages/errors/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-geo-utils-node-modules
+        target: /workspaces/aethernet/packages/geo_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-hono-node-modules
+        target: /workspaces/aethernet/packages/hono/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-hono-types-node-modules
+        target: /workspaces/aethernet/packages/hono_types/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-i18n-node-modules
+        target: /workspaces/aethernet/packages/i18n/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-instance-bootstrap-node-modules
+        target: /workspaces/aethernet/packages/instance_bootstrap/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-ip-utils-node-modules
+        target: /workspaces/aethernet/packages/ip_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-limits-node-modules
+        target: /workspaces/aethernet/packages/limits/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-logger-node-modules
+        target: /workspaces/aethernet/packages/logger/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-openapi-node-modules
+        target: /workspaces/aethernet/packages/openapi/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-schema-node-modules
+        target: /workspaces/aethernet/packages/schema/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-snowflake-node-modules
+        target: /workspaces/aethernet/packages/snowflake/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-cache-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/cache/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-captcha-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/captcha/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-cassandra-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/cassandra/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-elasticsearch-search-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/elasticsearch_search/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-email-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/email/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-geoip-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/geoip/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-http-client-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/http_client/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-initialization-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/initialization/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-kv-client-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/kv_client/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-locale-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/locale/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-media-proxy-utils-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/media_proxy_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-mime-utils-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/mime_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-nats-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/nats/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-rate-limit-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/rate_limit/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-sms-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/sms/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-virus-scan-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/virus_scan/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-worker-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/worker/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-app-list-utils-node-modules
+        target: /workspaces/aethernet/aethernet_app/pkgs/list_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-app-livekit-client-node-modules
+        target: /workspaces/aethernet/aethernet_app/pkgs/livekit-client/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-app-number-utils-node-modules
+        target: /workspaces/aethernet/aethernet_app/pkgs/number_utils/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: package-voice-engine-v2-node-modules
+        target: /workspaces/aethernet/packages/voice_engine_v2/node_modules
+        volume:
+          nocopy: true
+      - type: volume
+        source: aethernet-api-postgres-node-modules
+        target: /workspaces/aethernet/aethernet_api/pkgs/postgres/node_modules
+        volume:
+          nocopy: true
+      - pnpm-store:/home/vscode/.local/share/pnpm/store
+      - cargo-registry:/home/vscode/.cargo/registry
+      - cargo-git:/home/vscode/.cargo/git
+      - rust-target:/workspaces/aethernet/target
+      - type: bind
+        source: ${AETHERNET_DOCKER_SOCKET:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+    ports:
+      - "127.0.0.1:${AETHERNET_DEV_RSPACK_PORT:-3000}:3000"
+      - "127.0.0.1:${AETHERNET_DEV_PROXY_PORT:-8088}:8088"
+      - "127.0.0.1:${AETHERNET_DEV_API_PORT:-8080}:8080"
+      - "127.0.0.1:${AETHERNET_DEV_GATEWAY_PORT:-8771}:8771"
+      - "127.0.0.1:${AETHERNET_DEV_MEDIA_PROXY_PORT:-8082}:8082"
+      - "127.0.0.1:${AETHERNET_DEV_APP_PROXY_PORT:-8773}:8773"
+      - "127.0.0.1:${AETHERNET_DEV_ADMIN_PORT:-3020}:3020"
+      - "127.0.0.1:${AETHERNET_DEV_SEAWEEDFS_S3_PORT:-3900}:8333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+      nats:
+        condition: service_started
+      livekit:
+        condition: service_started
+      meilisearch:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aethernet
+      POSTGRES_USER: aethernet
+      POSTGRES_PASSWORD: aethernet
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${AETHERNET_DEV_POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aethernet -d aethernet"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  valkey:
+    image: valkey/valkey:8.1.7-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${AETHERNET_DEV_VALKEY_PORT:-6379}:6379"
+
+  nats:
+    image: nats:2.14.2-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    volumes:
+      - nats-data:/data
+    ports:
+      - "127.0.0.1:${AETHERNET_DEV_NATS_PORT:-4222}:4222"
+      - "127.0.0.1:${AETHERNET_DEV_NATS_MONITOR_PORT:-8222}:8222"
+
+  livekit:
+    image: livekit/livekit-server:v1.12.0
+    command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0"]
+    environment:
+      LIVEKIT_RTC_TCP_PORT: "${AETHERNET_DEV_LIVEKIT_TCP_PORT:-7881}"
+      LIVEKIT_RTC_UDP_PORT_START: "${AETHERNET_DEV_LIVEKIT_UDP_PORT:-7882}"
+      LIVEKIT_RTC_UDP_PORT_END: "${AETHERNET_DEV_LIVEKIT_UDP_PORT:-7882}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "127.0.0.1:${AETHERNET_DEV_LIVEKIT_PORT:-7880}:7880"
+      - "127.0.0.1:${AETHERNET_DEV_LIVEKIT_TCP_PORT:-7881}:${AETHERNET_DEV_LIVEKIT_TCP_PORT:-7881}"
+      - "127.0.0.1:${AETHERNET_DEV_LIVEKIT_UDP_PORT:-7882}:${AETHERNET_DEV_LIVEKIT_UDP_PORT:-7882}/udp"
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: aethernet-dev-meilisearch
+    volumes:
+      - meilisearch-data:/meili_data
+    ports:
+      - "127.0.0.1:${AETHERNET_DEV_MEILISEARCH_PORT:-7700}:7700"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:7700/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  mailpit:
+    image: axllent/mailpit:v1.30
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_WEBROOT: devmail
+    volumes:
+      - mailpit-data:/data
+
+volumes:
+  pnpm-store:
+  root-node-modules:
+  aethernet-api-node-modules:
+  aethernet-app-node-modules:
+  aethernet-desktop-node-modules:
+  aethernet-admin-node-modules:
+  package-config-node-modules:
+  package-constants-node-modules:
+  package-date-utils-node-modules:
+  package-errors-node-modules:
+  package-geo-utils-node-modules:
+  package-hono-node-modules:
+  package-hono-types-node-modules:
+  package-i18n-node-modules:
+  package-instance-bootstrap-node-modules:
+  package-ip-utils-node-modules:
+  package-limits-node-modules:
+  package-logger-node-modules:
+  package-openapi-node-modules:
+  package-schema-node-modules:
+  package-snowflake-node-modules:
+  aethernet-api-cache-node-modules:
+  aethernet-api-captcha-node-modules:
+  aethernet-api-cassandra-node-modules:
+  aethernet-api-elasticsearch-search-node-modules:
+  aethernet-api-email-node-modules:
+  aethernet-api-geoip-node-modules:
+  aethernet-api-http-client-node-modules:
+  aethernet-api-initialization-node-modules:
+  aethernet-api-kv-client-node-modules:
+  aethernet-api-locale-node-modules:
+  aethernet-api-media-proxy-utils-node-modules:
+  aethernet-api-mime-utils-node-modules:
+  aethernet-api-nats-node-modules:
+  aethernet-api-rate-limit-node-modules:
+  aethernet-api-sms-node-modules:
+  aethernet-api-virus-scan-node-modules:
+  aethernet-api-worker-node-modules:
+  aethernet-app-list-utils-node-modules:
+  aethernet-app-livekit-client-node-modules:
+  aethernet-app-number-utils-node-modules:
+  package-voice-engine-v2-node-modules:
+  aethernet-api-postgres-node-modules:
+  cargo-registry:
+  cargo-git:
+  rust-target:
+  nats-data:
+  meilisearch-data:
+  mailpit-data:
+  postgres-data:

@@ -1,0 +1,760 @@
+name: aethernet
+
+x-aethernet-postgres-env: &aethernet-postgres-env
+  AETHERNET_DATABASE_BACKEND: postgres
+  AETHERNET_POSTGRES_HOST: ${AETHERNET_POSTGRES_HOST:-postgres}
+  AETHERNET_POSTGRES_PORT: "${AETHERNET_POSTGRES_PORT:-5432}"
+  AETHERNET_POSTGRES_DATABASE: ${AETHERNET_POSTGRES_DATABASE:-aethernet}
+  AETHERNET_POSTGRES_USERNAME: ${AETHERNET_POSTGRES_USERNAME:-aethernet}
+  AETHERNET_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+  AETHERNET_POSTGRES_SSL: "${AETHERNET_POSTGRES_SSL:-false}"
+  AETHERNET_POSTGRES_PREPARED_STATEMENTS: ${AETHERNET_POSTGRES_PREPARED_STATEMENTS:-true}
+
+x-aethernet-env: &aethernet-env
+  <<: *aethernet-postgres-env
+  AETHERNET_ENV: production
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  AETHERNET_SELF_HOSTED: "true"
+  AETHERNET_BASE_DOMAIN: ${AETHERNET_DOMAIN:?set AETHERNET_DOMAIN in .env}
+  AETHERNET_PUBLIC_SCHEME: ${AETHERNET_PUBLIC_SCHEME:-https}
+  AETHERNET_PUBLIC_PORT: ${AETHERNET_PUBLIC_PORT:-443}
+  AETHERNET_PUBLIC_ORIGIN: ${AETHERNET_PUBLIC_ORIGIN:-}
+  AETHERNET_TRUST_CLIENT_IP_HEADER: "${AETHERNET_TRUST_CLIENT_IP_HEADER:-true}"
+  AETHERNET_CLIENT_IP_HEADER_NAME: ${AETHERNET_CLIENT_IP_HEADER_NAME:-x-forwarded-for}
+  AETHERNET_API_HEADERS_TIMEOUT_MS: ${AETHERNET_API_HEADERS_TIMEOUT_MS:-30000}
+  AETHERNET_API_REQUEST_TIMEOUT_MS: ${AETHERNET_API_REQUEST_TIMEOUT_MS:-120000}
+
+  AETHERNET_KV_URL: ${AETHERNET_KV_URL:-redis://valkey:6379/0}
+  AETHERNET_NATS_URL: ${AETHERNET_NATS_URL:-nats://nats:4222}
+  AETHERNET_NATS_JETSTREAM_URL: ${AETHERNET_NATS_JETSTREAM_URL:-${AETHERNET_NATS_URL:-nats://nats:4222}}
+  AETHERNET_NATS_AUTH_TOKEN: ${AETHERNET_NATS_AUTH_TOKEN:-}
+  AETHERNET_SVC_NATS_URL: ${AETHERNET_SVC_NATS_URL:-${AETHERNET_NATS_URL:-nats://nats:4222}}
+  AETHERNET_SVC_SHARD_COUNT: "1"
+
+  AETHERNET_SEARCH_ENGINE: meilisearch
+  AETHERNET_SEARCH_URL: ${AETHERNET_SEARCH_URL:-http://meilisearch:7700}
+  AETHERNET_SEARCH_API_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env}
+
+  AETHERNET_S3_ENDPOINT: ${AETHERNET_S3_ENDPOINT:-http://seaweedfs:8333}
+  AETHERNET_S3_PUBLIC_ENDPOINT: ${AETHERNET_S3_PUBLIC_ENDPOINT:-${AETHERNET_S3_ENDPOINT:-http://seaweedfs:8333}}
+  AETHERNET_S3_REGION: ${AETHERNET_S3_REGION:-us-east-1}
+  AETHERNET_S3_ACCESS_KEY_ID: ${AETHERNET_S3_ACCESS_KEY:?set AETHERNET_S3_ACCESS_KEY in .env}
+  AETHERNET_S3_SECRET_ACCESS_KEY: ${AETHERNET_S3_SECRET_KEY:?set AETHERNET_S3_SECRET_KEY in .env}
+  AETHERNET_S3_FORCE_PATH_STYLE: "${AETHERNET_S3_FORCE_PATH_STYLE:-true}"
+  AETHERNET_S3_BUCKET_CDN: ${AETHERNET_S3_BUCKET_CDN:-aethernet}
+  AETHERNET_S3_BUCKET_UPLOADS: ${AETHERNET_S3_BUCKET_UPLOADS:-aethernet-uploads}
+  AETHERNET_S3_BUCKET_DOWNLOADS: ${AETHERNET_S3_BUCKET_DOWNLOADS:-aethernet-downloads}
+  AETHERNET_S3_BUCKET_REPORTS: ${AETHERNET_S3_BUCKET_REPORTS:-aethernet-reports}
+  AETHERNET_S3_BUCKET_HARVESTS: ${AETHERNET_S3_BUCKET_HARVESTS:-aethernet-harvests}
+  AWS_ACCESS_KEY_ID: ${AETHERNET_S3_ACCESS_KEY:?set AETHERNET_S3_ACCESS_KEY in .env}
+  AWS_SECRET_ACCESS_KEY: ${AETHERNET_S3_SECRET_KEY:?set AETHERNET_S3_SECRET_KEY in .env}
+  AWS_DEFAULT_REGION: ${AETHERNET_S3_REGION:-us-east-1}
+  AWS_EC2_METADATA_DISABLED: "true"
+
+  AETHERNET_LIVEKIT_ENABLED: "${AETHERNET_LIVEKIT_ENABLED:-true}"
+  AETHERNET_LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}
+  AETHERNET_LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}
+  AETHERNET_LIVEKIT_INTERNAL_URL: ${AETHERNET_LIVEKIT_INTERNAL_URL:-http://livekit:7880}
+  AETHERNET_LIVEKIT_WEBHOOK_URL: http://api:8080/webhooks/livekit
+  AETHERNET_LIVEKIT_DEFAULT_REGION: '{"id":"default","name":"Default","emoji":"🌍","latitude":0,"longitude":0}'
+  AETHERNET_LIVEKIT_URL: ${AETHERNET_LIVEKIT_URL:-${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}:${AETHERNET_PUBLIC_PORT:-443}}/livekit}
+
+  AETHERNET_KLIPY_API_KEY: ${AETHERNET_KLIPY_API_KEY:-}
+
+  AETHERNET_EMAIL_ENABLED: ${AETHERNET_EMAIL_ENABLED:-false}
+  AETHERNET_EMAIL_PROVIDER: ${AETHERNET_EMAIL_PROVIDER:-none}
+  AETHERNET_EMAIL_FROM_EMAIL: ${AETHERNET_EMAIL_FROM_EMAIL:-noreply@localhost}
+  AETHERNET_EMAIL_FROM_NAME: ${AETHERNET_EMAIL_FROM_NAME:-Aethernet}
+  AETHERNET_EMAIL_APP_BASE_URL: ${AETHERNET_EMAIL_APP_BASE_URL:-}
+  AETHERNET_EMAIL_SMTP_HOST: ${AETHERNET_EMAIL_SMTP_HOST:-}
+  AETHERNET_EMAIL_SMTP_PORT: ${AETHERNET_EMAIL_SMTP_PORT:-587}
+  AETHERNET_EMAIL_SMTP_USERNAME: ${AETHERNET_EMAIL_SMTP_USERNAME:-}
+  AETHERNET_EMAIL_SMTP_PASSWORD: ${AETHERNET_EMAIL_SMTP_PASSWORD:-}
+  AETHERNET_EMAIL_SMTP_SECURE: ${AETHERNET_EMAIL_SMTP_SECURE:-true}
+
+  AETHERNET_SMS_ENABLED: "${AETHERNET_SMS_ENABLED:-false}"
+  AETHERNET_CAPTCHA_ENABLED: ${AETHERNET_CAPTCHA_ENABLED:-false}
+  AETHERNET_CAPTCHA_PROVIDER: ${AETHERNET_CAPTCHA_PROVIDER:-none}
+  AETHERNET_CAPTCHA_HCAPTCHA_SITE_KEY: ${AETHERNET_CAPTCHA_HCAPTCHA_SITE_KEY:-}
+  AETHERNET_CAPTCHA_HCAPTCHA_SECRET_KEY: ${AETHERNET_CAPTCHA_HCAPTCHA_SECRET_KEY:-}
+  AETHERNET_CAPTCHA_TURNSTILE_SITE_KEY: ${AETHERNET_CAPTCHA_TURNSTILE_SITE_KEY:-}
+  AETHERNET_CAPTCHA_TURNSTILE_SECRET_KEY: ${AETHERNET_CAPTCHA_TURNSTILE_SECRET_KEY:-}
+  AETHERNET_STRIPE_ENABLED: "${AETHERNET_STRIPE_ENABLED:-false}"
+  AETHERNET_NCMEC_ENABLED: "${AETHERNET_NCMEC_ENABLED:-false}"
+  AETHERNET_CLAMAV_ENABLED: "${AETHERNET_CLAMAV_ENABLED:-false}"
+  AETHERNET_DISCOVERY_ENABLED: ${AETHERNET_DISCOVERY_ENABLED:-true}
+
+  AETHERNET_SUDO_MODE_SECRET: ${AETHERNET_SUDO_MODE_SECRET:?set AETHERNET_SUDO_MODE_SECRET in .env}
+  AETHERNET_CONNECTION_INITIATION_SECRET: ${AETHERNET_CONNECTION_INITIATION_SECRET:?set AETHERNET_CONNECTION_INITIATION_SECRET in .env}
+  AETHERNET_SSO_ALLOW_PRIVATE_ADDRESSES: ${AETHERNET_SSO_ALLOW_PRIVATE_ADDRESSES:-false}
+  AETHERNET_VAPID_PUBLIC_KEY: ${AETHERNET_VAPID_PUBLIC_KEY:?set AETHERNET_VAPID_PUBLIC_KEY in .env}
+  AETHERNET_VAPID_PRIVATE_KEY: ${AETHERNET_VAPID_PRIVATE_KEY:?set AETHERNET_VAPID_PRIVATE_KEY in .env}
+  AETHERNET_VAPID_EMAIL: ${AETHERNET_VAPID_EMAIL:-admin@${AETHERNET_DOMAIN}}
+  AETHERNET_PASSKEY_RP_ID: ${AETHERNET_PASSKEY_RP_ID:-${AETHERNET_DOMAIN}}
+  AETHERNET_PASSKEY_RP_NAME: ${AETHERNET_PASSKEY_RP_NAME:-Aethernet}
+  AETHERNET_PASSKEY_ADDITIONAL_ALLOWED_ORIGINS: ${AETHERNET_PASSKEY_ADDITIONAL_ALLOWED_ORIGINS:-${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}}
+  AETHERNET_GATEWAY_RPC_AUTH_TOKEN: ${AETHERNET_GATEWAY_RPC_AUTH_TOKEN:?set AETHERNET_GATEWAY_RPC_AUTH_TOKEN in .env}
+  AETHERNET_MEDIA_PROXY_SECRET_KEY: ${AETHERNET_MEDIA_PROXY_SECRET_KEY:?set AETHERNET_MEDIA_PROXY_SECRET_KEY in .env}
+  AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64: ${AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64:?set AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64 in .env}
+  AETHERNET_ADMIN_SECRET_KEY_BASE: ${AETHERNET_ADMIN_SECRET_KEY_BASE:?set AETHERNET_ADMIN_SECRET_KEY_BASE in .env}
+  AETHERNET_ADMIN_OAUTH_CLIENT_SECRET: ${AETHERNET_ADMIN_OAUTH_CLIENT_SECRET:?set AETHERNET_ADMIN_OAUTH_CLIENT_SECRET in .env}
+
+  AETHERNET_INTERNAL_API_ENDPOINT: http://api:8080
+  AETHERNET_INTERNAL_GATEWAY_ENDPOINT: http://gateway:8080
+  AETHERNET_INTERNAL_MEDIA_PROXY_ENDPOINT: http://media-proxy:8080
+  AETHERNET_MARKETING_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}
+  AETHERNET_MEDIA_PROXY_ENDPOINT: http://media-proxy:8080
+  AETHERNET_MEDIA_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+  AETHERNET_MEDIA_PROXY_UPLOAD_RELAY_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+
+x-aethernet-service: &aethernet-service
+  restart: unless-stopped
+  networks: [aethernet]
+
+x-aethernet-svc-healthcheck: &aethernet-svc-healthcheck
+  test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8090 && printf 'GET /_health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"]
+  interval: 10s
+  timeout: 5s
+  retries: 30
+  start_period: 60s
+  start_interval: 1s
+
+services:
+  edge:
+    image: caddy:2.10-alpine
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_CADDY_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_CADDY_CPUS_LIMIT:-0.50}
+    restart: unless-stopped
+    networks: [aethernet]
+    ports:
+      - "${AETHERNET_HTTP_PORT:-80}:80"
+      - "${AETHERNET_HTTPS_PORT:-443}:443"
+      - "${AETHERNET_HTTPS_PORT:-443}:443/udp"
+    environment:
+      AETHERNET_EDGE_SITE_ADDRESS: ${AETHERNET_EDGE_SITE_ADDRESS:-${AETHERNET_CADDY_SITE_ADDRESS:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN:?set AETHERNET_DOMAIN in .env}}}
+      AETHERNET_EDGE_TRUSTED_PROXIES: ${AETHERNET_EDGE_TRUSTED_PROXIES:-private_ranges}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - edge-data:/data
+      - edge-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      api: {condition: service_started}
+      gateway: {condition: service_healthy}
+      media-proxy: {condition: service_started}
+      static-proxy: {condition: service_started}
+      admin: {condition: service_started}
+
+  postgres:
+    image: postgres:16-alpine
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_POSTGRES_MEMORY_LIMIT:-5gb}
+          cpus: ${AETHERNET_POSTGRES_CPUS_LIMIT:-2.0}
+        reservations:
+          memory: ${AETHERNET_POSTGRES_MEMORY_RESERVATION:-3gb}
+    restart: unless-stopped
+    networks: [aethernet]
+    command: >
+      postgres
+      -c max_connections=${AETHERNET_POSTGRES_SERVER_MAX_CONNECTIONS:-150}
+      -c shared_buffers=${AETHERNET_POSTGRES_SHARED_BUFFERS:-512MB}
+      -c effective_cache_size=${AETHERNET_POSTGRES_EFFECTIVE_CACHE_SIZE:-2GB}
+      -c work_mem=${AETHERNET_POSTGRES_WORK_MEM:-8MB}
+      -c maintenance_work_mem=${AETHERNET_POSTGRES_MAINTENANCE_WORK_MEM:-256MB}
+      -c autovacuum_work_mem=${AETHERNET_POSTGRES_AUTOVACUUM_WORK_MEM:-128MB}
+      -c random_page_cost=${AETHERNET_POSTGRES_RANDOM_PAGE_COST:-1.1}
+      -c effective_io_concurrency=${AETHERNET_POSTGRES_EFFECTIVE_IO_CONCURRENCY:-200}
+      -c default_statistics_target=${AETHERNET_POSTGRES_DEFAULT_STATISTICS_TARGET:-200}
+      -c jit=off
+      -c min_wal_size=${AETHERNET_POSTGRES_MIN_WAL_SIZE:-512MB}
+      -c max_wal_size=${AETHERNET_POSTGRES_MAX_WAL_SIZE:-2GB}
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c wal_compression=zstd
+      -c bgwriter_delay=50ms
+      -c bgwriter_lru_maxpages=1000
+      -c autovacuum_vacuum_scale_factor=0.05
+      -c autovacuum_analyze_scale_factor=0.02
+      -c autovacuum_vacuum_cost_limit=2000
+      -c track_io_timing=on
+      -c shared_preload_libraries=pg_stat_statements
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: aethernet
+      POSTGRES_USER: aethernet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aethernet -d aethernet"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_VALKEY_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_VALKEY_CPUS_LIMIT:-0.50}
+    restart: unless-stopped
+    networks: [aethernet]
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec", "--dir", "/data",
+              "--maxmemory", "${AETHERNET_VALKEY_MAXMEMORY:-192mb}",
+              "--maxmemory-policy", "${AETHERNET_VALKEY_MAXMEMORY_POLICY:-noeviction}"]
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nats:
+    image: nats:2.14-alpine
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_NATS_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_NATS_CPUS_LIMIT:-0.50}
+    restart: unless-stopped
+    networks: [aethernet]
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_MEILISEARCH_MEMORY_LIMIT:-768mb}
+          cpus: ${AETHERNET_MEILISEARCH_CPUS_LIMIT:-1.0}
+    restart: unless-stopped
+    networks: [aethernet]
+    environment:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MAX_INDEXING_MEMORY: ${AETHERNET_MEILISEARCH_MAX_INDEXING_MEMORY:-384mb}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env}
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.34
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_SEAWEEDFS_MEMORY_LIMIT:-2gb}
+          cpus: ${AETHERNET_SEAWEEDFS_CPUS_LIMIT:-1.0}
+    restart: unless-stopped
+    networks: [aethernet]
+    environment:
+      GOMEMLIMIT: ${AETHERNET_SEAWEEDFS_GOMEMLIMIT:-1536MiB}
+    command: ["server", "-s3", "-dir=/data"]
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.34
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_SEAWEEDFS_INIT_MEMORY_LIMIT:-128mb}
+          cpus: ${AETHERNET_SEAWEEDFS_INIT_CPUS_LIMIT:-0.50}
+    networks: [aethernet]
+    depends_on:
+      seaweedfs: {condition: service_healthy}
+    restart: "no"
+    environment:
+      AETHERNET_S3_ACCESS_KEY: ${AETHERNET_S3_ACCESS_KEY:?set AETHERNET_S3_ACCESS_KEY in .env}
+      AETHERNET_S3_SECRET_KEY: ${AETHERNET_S3_SECRET_KEY:?set AETHERNET_S3_SECRET_KEY in .env}
+      AETHERNET_S3_BUCKET_CDN: ${AETHERNET_S3_BUCKET_CDN:-aethernet}
+      AETHERNET_S3_BUCKET_UPLOADS: ${AETHERNET_S3_BUCKET_UPLOADS:-aethernet-uploads}
+      AETHERNET_S3_BUCKET_DOWNLOADS: ${AETHERNET_S3_BUCKET_DOWNLOADS:-aethernet-downloads}
+      AETHERNET_S3_BUCKET_REPORTS: ${AETHERNET_S3_BUCKET_REPORTS:-aethernet-reports}
+      AETHERNET_S3_BUCKET_HARVESTS: ${AETHERNET_S3_BUCKET_HARVESTS:-aethernet-harvests}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        buckets="$$AETHERNET_S3_BUCKET_CDN $$AETHERNET_S3_BUCKET_UPLOADS $$AETHERNET_S3_BUCKET_DOWNLOADS $$AETHERNET_S3_BUCKET_REPORTS $$AETHERNET_S3_BUCKET_HARVESTS";
+        missing="$$buckets";
+        for attempt in $$(seq 1 60); do
+          if ! nc -z seaweedfs 9333 2>/dev/null; then
+            sleep 2;
+            continue;
+          fi;
+          listed=$$(echo "s3.bucket.list" | timeout 10 weed shell -master=seaweedfs:9333 2>&1);
+          missing="";
+          for b in $$buckets; do
+            echo "$$listed" | grep -q "^[[:space:]]*$$b[[:space:]]" || missing="$${missing:+$$missing }$$b";
+          done;
+          if [ -z "$$missing" ]; then
+            if ! echo "s3.configure -user=aethernet -access_key=$$AETHERNET_S3_ACCESS_KEY -secret_key=$$AETHERNET_S3_SECRET_KEY -actions=Admin,Read,Write,List,Tagging -apply" | timeout 10 weed shell -master=seaweedfs:9333 >/dev/null 2>&1; then
+              echo "seaweedfs-init could not configure the S3 identity" >&2;
+              exit 1;
+            fi;
+            echo "buckets ready";
+            exit 0;
+          fi;
+          for b in $$missing; do
+            echo "s3.bucket.create -name $$b" | timeout 10 weed shell -master=seaweedfs:9333 >/dev/null 2>&1;
+          done;
+          sleep 2;
+        done;
+        echo "seaweedfs-init could not verify buckets: $$missing" >&2;
+        exit 1;
+
+  livekit:
+    image: livekit/livekit-server:v1.12.0
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_LIVEKIT_MEMORY_LIMIT:-512mb}
+          cpus: ${AETHERNET_LIVEKIT_CPUS_LIMIT:-2.0}
+    restart: unless-stopped
+    networks: [aethernet]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}"
+      LIVEKIT_CONFIG: |
+        port: 7880
+        log_level: info
+        rtc:
+          tcp_port: ${AETHERNET_LIVEKIT_TCP_PORT:-7881}
+          udp_port: ${AETHERNET_LIVEKIT_UDP_PORT:-7882}
+          use_external_ip: ${AETHERNET_LIVEKIT_USE_EXTERNAL_IP:-true}
+          node_ip: "${AETHERNET_LIVEKIT_NODE_IP:-}"
+          stun_servers:
+            - ${AETHERNET_LIVEKIT_STUN_PRIMARY:-stun.l.google.com:19302}
+            - ${AETHERNET_LIVEKIT_STUN_SECONDARY:-stun1.l.google.com:19302}
+        webhook:
+          api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}
+          urls:
+            - http://api:8080/webhooks/livekit
+    ports:
+      - "${AETHERNET_LIVEKIT_TCP_PORT:-7881}:${AETHERNET_LIVEKIT_TCP_PORT:-7881}"
+      - "${AETHERNET_LIVEKIT_UDP_PORT:-7882}:${AETHERNET_LIVEKIT_UDP_PORT:-7882}/udp"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7880/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-api:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_API_MEMORY_LIMIT:-2560mb}
+          cpus: ${AETHERNET_API_CPUS_LIMIT:-2.0}
+        reservations:
+          memory: ${AETHERNET_API_MEMORY_RESERVATION:-1gb}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_API_PORT: "8080"
+      NODE_OPTIONS: --enable-source-maps${AETHERNET_API_NODE_HEAP_MB:+ --max-old-space-size=$AETHERNET_API_NODE_HEAP_MB}
+      AETHERNET_API_PRESIGNED_ATTACHMENT_UPLOADS_ENABLED: "true"
+      AETHERNET_POSTGRES_MAX_CONNECTIONS: "${AETHERNET_API_POSTGRES_MAX_CONNECTIONS:-25}"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8080/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+      start_interval: 1s
+    depends_on:
+      postgres: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+      nats: {condition: service_healthy}
+      meilisearch: {condition: service_healthy}
+      seaweedfs-init: {condition: service_completed_successfully}
+      gifs: {condition: service_healthy}
+      gifs-shard: {condition: service_healthy}
+      snowflakes: {condition: service_healthy}
+      snowflakes-shard: {condition: service_healthy}
+      messages: {condition: service_healthy}
+      messages-shard: {condition: service_healthy}
+      users: {condition: service_healthy}
+      users-shard: {condition: service_healthy}
+
+  worker:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-api:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_WORKER_MEMORY_LIMIT:-2560mb}
+          cpus: ${AETHERNET_WORKER_CPUS_LIMIT:-2.0}
+        reservations:
+          memory: ${AETHERNET_WORKER_MEMORY_RESERVATION:-1gb}
+    working_dir: /usr/src/app/aethernet_api
+    command: ["sh", "-c", "if [ -f dist/WorkerEntrypoint.js ]; then exec node dist/WorkerEntrypoint.js; else exec ./node_modules/.bin/tsx src/WorkerEntrypoint.ts; fi"]
+    environment:
+      <<: *aethernet-env
+      NODE_OPTIONS: --enable-source-maps${AETHERNET_WORKER_NODE_HEAP_MB:+ --max-old-space-size=$AETHERNET_WORKER_NODE_HEAP_MB}
+      AETHERNET_API_WORKER_MODE: all_lanes
+      AETHERNET_API_WORKER_ENABLE_CRON_SCHEDULER: "true"
+      AETHERNET_API_WORKER_ENABLE_VOICE_RECONCILIATION: "true"
+      AETHERNET_API_WORKER_LANE_CONCURRENCY_OVERRIDES: '${AETHERNET_API_WORKER_LANE_CONCURRENCY_OVERRIDES:-}'
+      AETHERNET_POSTGRES_MAX_CONNECTIONS: "${AETHERNET_WORKER_POSTGRES_MAX_CONNECTIONS:-25}"
+    healthcheck:
+      test: ["CMD", "node", "-e", "const age=Date.now()-require('node:fs').statSync('/tmp/aethernet-worker-heartbeat').mtimeMs;if(age>30000){console.error('worker heartbeat is '+Math.round(age)+'ms old');process.exit(1)}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+      start_interval: 1s
+    depends_on:
+      postgres: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+      nats: {condition: service_healthy}
+      seaweedfs-init: {condition: service_completed_successfully}
+      snowflakes-shard: {condition: service_healthy}
+      messages-shard: {condition: service_healthy}
+      users-shard: {condition: service_healthy}
+
+  gateway:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-gateway:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_GATEWAY_MEMORY_LIMIT:-1gb}
+          cpus: ${AETHERNET_GATEWAY_CPUS_LIMIT:-2.0}
+        reservations:
+          memory: ${AETHERNET_GATEWAY_MEMORY_RESERVATION:-384mb}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_GATEWAY_PORT: "8080"
+      AETHERNET_GATEWAY_MEDIA_PROXY_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+      AETHERNET_GATEWAY_STATIC_CDN_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}
+      AETHERNET_GATEWAY_LOGGER_LEVEL: info
+      AETHERNET_ERLANG_COOKIE: ${AETHERNET_ERLANG_COOKIE:?set AETHERNET_ERLANG_COOKIE in .env}
+      AETHERNET_ERLANG_SCHEDULERS_MIN: "${AETHERNET_ERLANG_SCHEDULERS_MIN:-2}"
+      AETHERNET_ERLANG_SCHEDULERS_MAX: "${AETHERNET_ERLANG_SCHEDULERS_MAX:-16}"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/_health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    depends_on:
+      nats: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+
+  media-proxy:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-media-proxy:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_MEDIA_PROXY_MEMORY_LIMIT:-512mb}
+          cpus: ${AETHERNET_MEDIA_PROXY_CPUS_LIMIT:-1.0}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_MEDIA_PROXY_HOST: 0.0.0.0
+      AETHERNET_MEDIA_PROXY_PORT: "8080"
+      AETHERNET_MEDIA_PROXY_MODE: upload
+      AETHERNET_MEDIA_PROXY_STORAGE_BACKEND: s3
+      AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+      AETHERNET_S3_READ_SIGNED: "true"
+    depends_on:
+      seaweedfs-init: {condition: service_completed_successfully}
+      nats: {condition: service_healthy}
+
+  static-proxy:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-static:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_STATIC_PROXY_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_STATIC_PROXY_CPUS_LIMIT:-0.50}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/avatars/0.png"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app-proxy:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-app-proxy-self-hosted:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_APP_PROXY_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_APP_PROXY_CPUS_LIMIT:-0.50}
+    environment:
+      AETHERNET_APP_PROXY_HOST: 0.0.0.0
+      AETHERNET_APP_PROXY_PORT: "8080"
+      AETHERNET_BASE_DOMAIN: ${AETHERNET_DOMAIN:?set AETHERNET_DOMAIN in .env}
+      AETHERNET_PUBLIC_SCHEME: ${AETHERNET_PUBLIC_SCHEME:-https}
+      AETHERNET_PUBLIC_PORT: ${AETHERNET_PUBLIC_PORT:-443}
+      AETHERNET_PUBLIC_ORIGIN: ${AETHERNET_PUBLIC_ORIGIN:-}
+      DISCOVERY_UPSTREAM_URL: http://edge:8088/.well-known/aethernet
+      PUBLIC_BOOTSTRAP_API_ENDPOINT: /api
+      PUBLIC_BOOTSTRAP_API_PUBLIC_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/api
+      AETHERNET_CSP_EXTRA_DEFAULT_SRC: ${AETHERNET_CSP_EXTRA_DEFAULT_SRC:-}
+      AETHERNET_CSP_EXTRA_CONNECT_SRC: ${AETHERNET_CSP_EXTRA_CONNECT_SRC:-}
+      AETHERNET_CSP_EXTRA_IMG_SRC: ${AETHERNET_CSP_EXTRA_IMG_SRC:-}
+      AETHERNET_CSP_EXTRA_MEDIA_SRC: ${AETHERNET_CSP_EXTRA_MEDIA_SRC:-}
+      AETHERNET_CSP_EXTRA_FONT_SRC: ${AETHERNET_CSP_EXTRA_FONT_SRC:-}
+      AETHERNET_CSP_EXTRA_SCRIPT_SRC: ${AETHERNET_CSP_EXTRA_SCRIPT_SRC:-}
+      AETHERNET_CSP_EXTRA_STYLE_SRC: ${AETHERNET_CSP_EXTRA_STYLE_SRC:-}
+      AETHERNET_CSP_EXTRA_FRAME_SRC: ${AETHERNET_CSP_EXTRA_FRAME_SRC:-}
+      AETHERNET_CSP_EXTRA_WORKER_SRC: ${AETHERNET_CSP_EXTRA_WORKER_SRC:-}
+      AETHERNET_CSP_EXTRA_MANIFEST_SRC: ${AETHERNET_CSP_EXTRA_MANIFEST_SRC:-}
+      AETHERNET_CSP_REPORT_URI: ${AETHERNET_CSP_REPORT_URI:-}
+    depends_on:
+      api: {condition: service_healthy}
+      edge: {condition: service_healthy}
+
+  snowflakes:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-snowflakes:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_SNOWFLAKES_MEMORY_LIMIT:-128mb}
+          cpus: ${AETHERNET_SNOWFLAKES_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: snowflakes
+      AETHERNET_SVC_MODE: router
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  snowflakes-shard:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-snowflakes:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_SNOWFLAKES_SHARD_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_SNOWFLAKES_SHARD_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: snowflakes
+      AETHERNET_SVC_MODE: shard
+      AETHERNET_SVC_SHARD_ID: "0"
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  users:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-users:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_USERS_MEMORY_LIMIT:-128mb}
+          cpus: ${AETHERNET_USERS_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: users
+      AETHERNET_SVC_MODE: router
+      AETHERNET_SVC_MAX_CONCURRENT_REQUESTS: "${AETHERNET_SVC_MAX_CONCURRENT_REQUESTS:-}"
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  users-shard:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-users:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_USERS_SHARD_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_USERS_SHARD_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: users
+      AETHERNET_SVC_MODE: shard
+      AETHERNET_SVC_SHARD_ID: "0"
+      AETHERNET_POSTGRES_MAX_CONNECTIONS: "20"
+      AETHERNET_SVC_MAX_CONCURRENT_REQUESTS: "${AETHERNET_SVC_MAX_CONCURRENT_REQUESTS:-}"
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+
+  gifs:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-gifs:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_GIFS_MEMORY_LIMIT:-128mb}
+          cpus: ${AETHERNET_GIFS_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: gifs
+      AETHERNET_SVC_MODE: router
+      AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  gifs-shard:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-gifs:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_GIFS_SHARD_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_GIFS_SHARD_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: gifs
+      AETHERNET_SVC_MODE: shard
+      AETHERNET_SVC_SHARD_ID: "0"
+      AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  messages:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-messages:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_MESSAGES_MEMORY_LIMIT:-128mb}
+          cpus: ${AETHERNET_MESSAGES_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: messages
+      AETHERNET_SVC_MODE: router
+      AETHERNET_SVC_MAX_CONCURRENT_REQUESTS: "${AETHERNET_SVC_MAX_CONCURRENT_REQUESTS:-}"
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  messages-shard:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-messages:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_MESSAGES_SHARD_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_MESSAGES_SHARD_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: messages
+      AETHERNET_SVC_MODE: shard
+      AETHERNET_SVC_SHARD_ID: "0"
+      AETHERNET_POSTGRES_MAX_CONNECTIONS: "20"
+      AETHERNET_SVC_MAX_CONCURRENT_REQUESTS: "${AETHERNET_SVC_MAX_CONCURRENT_REQUESTS:-}"
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+
+  unfurl:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-unfurl:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_UNFURL_MEMORY_LIMIT:-128mb}
+          cpus: ${AETHERNET_UNFURL_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: unfurl
+      AETHERNET_SVC_MODE: router
+      AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+      AETHERNET_STATIC_CDN_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  unfurl-shard:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-unfurl:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_UNFURL_SHARD_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_UNFURL_SHARD_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_SVC_NAME: unfurl
+      AETHERNET_SVC_MODE: shard
+      AETHERNET_SVC_SHARD_ID: "0"
+      AETHERNET_MEDIA_PROXY_PUBLIC_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+      AETHERNET_STATIC_CDN_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}
+    healthcheck: *aethernet-svc-healthcheck
+    depends_on:
+      nats: {condition: service_healthy}
+
+  admin:
+    <<: *aethernet-service
+    image: ${AETHERNET_REGISTRY:-ghcr.io/${AETHERNET_REGISTRY_OWNER:-aethernetapp}}/aethernet-admin:${AETHERNET_IMAGE_TAG:-v1}
+    deploy:
+      resources:
+        limits:
+          memory: ${AETHERNET_ADMIN_MEMORY_LIMIT:-256mb}
+          cpus: ${AETHERNET_ADMIN_CPUS_LIMIT:-0.50}
+    environment:
+      <<: *aethernet-env
+      AETHERNET_ADMIN_HOST: 0.0.0.0
+      AETHERNET_ADMIN_PORT: "8080"
+      AETHERNET_ADMIN_BASE_PATH: /admin
+      AETHERNET_API_ENDPOINT: http://api:8080
+      AETHERNET_ADMIN_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/admin
+      AETHERNET_APP_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}
+      AETHERNET_MEDIA_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/media
+      AETHERNET_STATIC_CDN_ENDPOINT: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}
+      AETHERNET_ADMIN_OAUTH_REDIRECT_URI: ${AETHERNET_PUBLIC_ORIGIN:-${AETHERNET_PUBLIC_SCHEME:-https}://${AETHERNET_DOMAIN}}/admin/oauth2_callback
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /_health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+      start_interval: 1s
+    depends_on:
+      api: {condition: service_healthy}
+
+networks:
+  aethernet:
+    driver: bridge
+
+volumes:
+  edge-data:
+  edge-config:
+  postgres-data:
+  valkey-data:
+  nats-data:
+  meilisearch-data:
+  seaweedfs-data:

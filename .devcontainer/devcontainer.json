@@ -1,0 +1,55 @@
+{
+	"name": "Aethernet",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "workspace",
+	"workspaceFolder": "/workspaces/aethernet",
+	"shutdownAction": "stopCompose",
+	"remoteUser": "vscode",
+	"hostRequirements": {
+		"cpus": 4,
+		"memory": "8gb",
+		"storage": "32gb"
+	},
+	"remoteEnv": {
+		"DOCKER_HOST": "unix:///var/run/docker.sock"
+	},
+	"runServices": ["workspace", "postgres", "valkey", "nats", "livekit", "meilisearch", "mailpit"],
+	"forwardPorts": [3000, 8088, 8080, 8771, 8082, 8773, 3020, 8333],
+	"portsAttributes": {
+		"8088": {
+			"label": "Aethernet dev proxy",
+			"onAutoForward": "notify"
+		},
+		"3000": {
+			"label": "Rspack dev server"
+		},
+		"3020": {
+			"label": "Aethernet admin"
+		},
+		"8333": {
+			"label": "SeaweedFS S3"
+		},
+		"8773": {
+			"label": "Aethernet app proxy"
+		}
+	},
+	"postCreateCommand": "bash /workspaces/aethernet/.devcontainer/fix-docker-socket.sh && bash /workspaces/aethernet/.devcontainer/fix-workspace-permissions.sh && cargo run -p aethernet-dev -- bootstrap",
+	"postStartCommand": "bash /workspaces/aethernet/.devcontainer/fix-docker-socket.sh && bash /workspaces/aethernet/.devcontainer/fix-workspace-permissions.sh && cargo run -p aethernet-dev -- post-start",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"editor.defaultFormatter": "biomejs.biome"
+			},
+			"extensions": [
+				"biomejs.biome",
+				"rust-lang.rust-analyzer",
+				"tamasfe.even-better-toml",
+				"TypeScriptTeam.native-preview",
+				"unifiedjs.vscode-mdx",
+				"pgourlain.erlang",
+				"clinyong.vscode-css-modules",
+				"EditorConfig.EditorConfig"
+			]
+		}
+	}
+}

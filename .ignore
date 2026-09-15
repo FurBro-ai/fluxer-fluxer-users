@@ -1,0 +1,6 @@
+**/Cargo.lock
+**/pnpm-lock.yaml
+**/rebar.lock
+
+/aethernet_static/
+/packages/fonts/files/

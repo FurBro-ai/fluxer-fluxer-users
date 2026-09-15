@@ -1,0 +1,4 @@
+* text=auto
+aethernet_static/** -text -diff
+aethernet_static/**/*.md text diff
+packages/fonts/files/** -text -diff

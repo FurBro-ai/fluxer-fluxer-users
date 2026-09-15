@@ -1,0 +1,25 @@
+{
+	"name": "@aethernet/hono",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./*"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@aethernet/constants": "workspace:*",
+		"@aethernet/errors": "workspace:*",
+		"@aethernet/ip_utils": "workspace:*",
+		"@hono/node-server": "catalog:",
+		"hono": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@typescript/native-preview": "catalog:",
+		"vitest": "catalog:"
+	}
+}

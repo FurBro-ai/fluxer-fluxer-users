@@ -1,0 +1,90 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"include": ["files", "exports", "types", "dependencies", "unlisted", "binaries", "catalog"],
+	"ignoreDependencies": [
+		"@bufbuild/protoc-gen-es",
+		"@tailwindcss/cli",
+		"@types/events",
+		"events",
+		"fflate",
+		"gifenc",
+		"gifuct-js",
+		"tailwindcss",
+		"upng-js"
+	],
+	"ignoreFiles": [
+		"aethernet_admin/src/styles/app.css",
+		"aethernet_admin/static/htmx.min.js",
+		"tools/ci/templates/libfluxcore_wrapper.d.ts",
+		"tools/ci/templates/libfluxcore_wrapper.js"
+	],
+	"ignoreIssues": {
+		"aethernet_app/scripts/build/Config.tsx": ["exports"],
+		"aethernet_app/scripts/build/rspack/static-files.mjs": ["exports"],
+		"aethernet_app/src/index.tsx": ["unlisted"],
+		"aethernet_desktop/native/mac-app-audio/index.test.mjs": ["unlisted"],
+		"aethernet_desktop/src/common/DesktopConfig.ts": ["types"],
+		"aethernet_desktop/src/common/Types.ts": ["types"],
+		"aethernet_desktop/src/main/Autostart.ts": ["exports"],
+		"aethernet_desktop/src/main/LinuxDesktopEntry.ts": ["exports"],
+		"aethernet_desktop/src/main/NotificationState.ts": ["exports", "types"],
+		"packages/schema/src/domains/admin/AdminUserSchemas.ts": ["exports"],
+		"packages/schema/src/domains/admin/VoiceNoiseSuppressionSchemas.ts": ["exports"],
+		"packages/schema/src/domains/geolocation/GeolocationSchemas.ts": ["exports"],
+		"pnpm-workspace.yaml": ["catalog"]
+	},
+	"workspaces": {
+		".": {
+			"ignoreDependencies": ["vite"]
+		},
+		"aethernet_api": {
+			"ignoreDependencies": [
+				"@elastic/elasticsearch",
+				"@hono/node-server",
+				"@messageformat/core",
+				"@messageformat/parser",
+				"@vvo/tzdb",
+				"emoji-regex",
+				"ioredis",
+				"maxmind",
+				"nodemailer",
+				"pg",
+				"pino",
+				"undici",
+				"validator"
+			]
+		},
+		"aethernet_app": {
+			"entry": ["lingui.config.js", "scripts/build-sw.mjs", "scripts/Generate*.ts"],
+			"ignoreDependencies": ["@sapphi-red/web-noise-suppressor", "@lingui/swc-plugin"]
+		},
+		"aethernet_desktop": {
+			"entry": [
+				"src/main/Bootstrap.ts",
+				"src/main/index.ts",
+				"src/preload/index.ts",
+				"src/main/**/*.test.{ts,mjs}",
+				"native/*/index.{js,d.ts}",
+				"native/*/loader-diagnostics.cjs",
+				"native/*/*.test.mjs",
+				"native/*/test/**/*.mjs"
+			],
+			"project": ["src/**/*.{ts,tsx,mjs,js}", "scripts/**/*.mjs", "native/**/*.{js,mjs,cjs,d.ts}"],
+			"ignoreDependencies": ["electron-builder", "electron-builder-squirrel-windows"]
+		},
+		"aethernet_docs": {
+			"entry": ["scripts/*.ts", "src/**/*.astro"],
+			"project": ["src/**/*.{ts,astro}", "scripts/**/*.ts"],
+			"ignoreDependencies": ["sharp"]
+		},
+		"packages/openapi": {
+			"project": ["src/**/*.ts"]
+		},
+		"packages/schema": {
+			"project": ["src/**/*.ts", "!src/gen/**"]
+		},
+		"packages/voice_engine_v2": {
+			"entry": ["src/**/*.bench.ts"]
+		}
+	}
+}

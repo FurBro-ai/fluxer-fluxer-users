@@ -1,0 +1,192 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"formatter": {
+		"enabled": true,
+		"formatWithErrors": false,
+		"indentStyle": "tab",
+		"lineWidth": 120,
+		"lineEnding": "lf",
+		"bracketSpacing": false,
+		"includes": ["**", "!**/aethernet_app/src/features/theme/variables/ThemeVariableManifest.ts"]
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single",
+			"jsxQuoteStyle": "double",
+			"quoteProperties": "asNeeded",
+			"trailingCommas": "all",
+			"semicolons": "always",
+			"arrowParentheses": "always",
+			"bracketSpacing": false,
+			"bracketSameLine": false
+		},
+		"globals": ["React", "__webpack_base_uri__"]
+	},
+	"json": {
+		"formatter": {
+			"enabled": true,
+			"indentStyle": "tab",
+			"lineWidth": 120
+		},
+		"parser": {
+			"allowComments": true,
+			"allowTrailingCommas": true
+		}
+	},
+	"css": {
+		"formatter": {
+			"enabled": true,
+			"indentStyle": "tab",
+			"lineWidth": 120,
+			"quoteStyle": "single"
+		},
+		"parser": {
+			"cssModules": true,
+			"tailwindDirectives": true
+		}
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"complexity": {
+				"noForEach": "off",
+				"noImportantStyles": "off",
+				"useLiteralKeys": "off"
+			},
+			"correctness": {
+				"noUndeclaredVariables": "error",
+				"noUnusedVariables": "error",
+				"noInvalidUseBeforeDeclaration": "off",
+				"useExhaustiveDependencies": "off"
+			},
+			"suspicious": {
+				"noArrayIndexKey": "off",
+				"noAssignInExpressions": "off",
+				"noExplicitAny": "off",
+				"noThenProperty": "off",
+				"noDoubleEquals": {
+					"level": "error",
+					"options": {
+						"ignoreNull": true
+					}
+				},
+				"noVar": "error",
+				"useAdjacentOverloadSignatures": "off",
+				"useIterableCallbackReturn": "off"
+			},
+			"style": {
+				"useConsistentArrayType": {
+					"level": "error",
+					"options": {
+						"syntax": "generic"
+					}
+				},
+				"useConst": "error",
+				"noNonNullAssertion": "off",
+				"noParameterAssign": "off",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"@lingui/react": {
+								"importNames": ["I18nProvider"],
+								"message": "Use AppI18nProvider from @app/features/i18n/components/AppI18nProvider so <Trans> output stays safe under page translation."
+							}
+						}
+					}
+				}
+			},
+			"a11y": {
+				"recommended": true,
+				"useAriaPropsForRole": "error",
+				"useValidAriaRole": "error",
+				"useValidAriaValues": "error",
+				"useValidAriaProps": "error",
+				"useAltText": "error",
+				"useAnchorContent": "error",
+				"useButtonType": "error",
+				"useKeyWithClickEvents": "error",
+				"useKeyWithMouseEvents": "error",
+				"useSemanticElements": "off",
+				"noAriaUnsupportedElements": "error",
+				"noNoninteractiveElementToInteractiveRole": "error",
+				"noNoninteractiveTabindex": "error",
+				"noRedundantAlt": "error",
+				"noRedundantRoles": "error",
+				"noInteractiveElementToNoninteractiveRole": "error",
+				"noAutofocus": "warn",
+				"noAccessKey": "warn",
+				"useAriaActivedescendantWithTabindex": "error",
+				"noSvgWithoutTitle": "off"
+			},
+			"nursery": {
+				"useSortedClasses": "error"
+			}
+		}
+	},
+	"assist": {"actions": {"source": {"organizeImports": "on"}}},
+	"overrides": [
+		{
+			"includes": ["aethernet_app/src/**/*.tsx"],
+			"plugins": ["./tools/lint/no-adjacent-jsx-text.grit"]
+		},
+		{
+			"includes": ["aethernet_docs/scripts/VerifyDocsCoverage.ts"],
+			"linter": {"rules": {"suspicious": {"noTemplateCurlyInString": "off"}}}
+		},
+		{
+			"includes": [
+				"aethernet_app/src/features/i18n/components/AppI18nProvider.tsx",
+				"aethernet_app/src/features/i18n/components/AppI18nProvider.test.tsx"
+			],
+			"linter": {"rules": {"style": {"noRestrictedImports": "off"}}}
+		},
+		{
+			"includes": ["**/*.astro"],
+			"linter": {"rules": {"correctness": {"noUnusedImports": "off", "noUnusedVariables": "off"}}},
+			"assist": {"actions": {"source": {"organizeImports": "off"}}}
+		}
+	],
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!**/.git",
+			"!**/app.css",
+			"!aethernet_admin/public/static/app.css",
+			"!**/build",
+			"aethernet_app/scripts/build",
+			"!**/dist",
+			"!**/aethernet_app/src/media/data/emojis.json",
+			"!**/aethernet_app/src/features/i18n/locales/*/messages.js",
+			"!**/aethernet_app/src/features/i18n/locales/*/messages.mjs",
+			"!**/aethernet_app/src/env.d.ts",
+			"!**/*.generated.*",
+			"!**/*.pb.*",
+			"!**/*_pb.*",
+			"!**/node_modules",
+			"!packages/schema/src/gen",
+			"!**/tailwind.css",
+			"!**/*.html",
+			"!**/*.module.css.d.ts",
+			"!**/aethernet_app/src/features/ui/components/SVGMasks.tsx",
+			"!aethernet_static",
+			"!packages/fonts",
+			"!aethernet_admin/static/htmx.min.js",
+			"!aethernet_api/src/api/openapi/openapi.json",
+			"!aethernet_api/pkgs/email/src/email_i18n/locales",
+			"!aethernet_api/pkgs/email/src/email_i18n/weblate",
+			"!aethernet_api/src/api/content_i18n/locales",
+			"!aethernet_api/src/api/content_i18n/weblate",
+			"!packages/errors/src/i18n/locales",
+			"!packages/errors/src/i18n/weblate",
+			"!**/auto-i18n-reviewed-unchanged.json"
+		],
+		"ignoreUnknown": true
+	}
+}

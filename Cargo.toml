@@ -1,0 +1,32 @@
+[workspace]
+members = [
+	"aethernet_admin",
+	"aethernet_app_proxy",
+	"aethernet_common",
+	"aethernet_media_proxy",
+	"aethernet_gifs",
+	"aethernet_svc",
+	"aethernet_messages",
+	"aethernet_snowflakes",
+	"tools/ci",
+	"tools/content/update-frozen-snapshot",
+	"tools/dev",
+	"tools/i18n_auto",
+	"aethernet_users",
+	"aethernet_unfurl",
+	"packages/markdown_parser/rust",
+	"aethernet_recon",
+]
+exclude = [
+	"packages/markdown_parser/rust/fuzz",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "AGPL-3.0-or-later"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
